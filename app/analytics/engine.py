@@ -252,18 +252,19 @@ def run_meta_optimizer(category: str, platform: str = "youtube", epsilon: float 
     tracked_videos = get_tracked_videos_for_analytics(limit=50)
     cat_videos = [v for v in tracked_videos if v.get("category") == category]
     
-    if len(cat_videos) < 2:
-        print(f"Historical {platform} reward data accumulating for '{category}'. Initializing baseline directives.")
-        return get_active_profile(category, platform=platform)
-        
     if platform == "youtube":
+        platform_videos = [v for v in cat_videos if v.get("yt_video_id") and str(v.get("yt_video_id")).strip() != ""]
+        if len(platform_videos) < 2:
+            print(f"Historical YouTube reward data accumulating for '{category}'. Initializing baseline directives.")
+            return get_active_profile(category, platform="youtube")
+            
         batch_stats = [{
             "title": v.get("title"),
             "yt_views": v.get("yt_views", 0),
             "yt_likes": v.get("yt_likes", 0),
             "yt_comments": v.get("yt_comments", 0),
-            "yt_score": calculate_youtube_reward(v.get("yt_views", 0), v.get("yt_likes", 0), v.get("yt_comments", 0))
-        } for v in cat_videos[:15]]
+            "yt_score": calculate_youtube_reward(v.get("yt_views", 0), v.get("yt_likes", 0), v.get("yt_comments", 0), recorded_at_str=v.get("recorded_at"))
+        } for v in platform_videos[:15]]
         platform_focus = """
         PLATFORM TARGET: YOUTUBE SHORTS
         - YouTube algorithm heavily prioritizes high watch-percentage retention and comment activity.
@@ -271,14 +272,19 @@ def run_meta_optimizer(category: str, platform: str = "youtube", epsilon: float 
         - Title formulas must incorporate curiosity loops, strong emojis, and #shorts #viral.
         """
     else:
+        platform_videos = [v for v in cat_videos if v.get("fb_video_id") and str(v.get("fb_video_id")).strip() != ""]
+        if len(platform_videos) < 2:
+            print(f"Historical Facebook reward data accumulating for '{category}'. Initializing baseline directives.")
+            return get_active_profile(category, platform="facebook")
+            
         batch_stats = [{
             "title": v.get("title"),
             "fb_views": v.get("fb_views", 0),
             "fb_shares": v.get("fb_shares", 0),
             "fb_comments": v.get("fb_comments", 0),
             "fb_likes": v.get("fb_likes", 0),
-            "fb_score": calculate_facebook_reward(v.get("fb_views", 0), v.get("fb_shares", 0), v.get("fb_comments", 0), v.get("fb_likes", 0))
-        } for v in cat_videos[:15]]
+            "fb_score": calculate_facebook_reward(v.get("fb_views", 0), v.get("fb_shares", 0), v.get("fb_comments", 0), v.get("fb_likes", 0), recorded_at_str=v.get("recorded_at"))
+        } for v in platform_videos[:15]]
         platform_focus = """
         PLATFORM TARGET: FACEBOOK REELS
         - Facebook algorithm heavily prioritizes SHARES to friends/feeds and active comment section debates.

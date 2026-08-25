@@ -3,6 +3,7 @@ import google_auth_oauthlib.flow
 import googleapiclient.discovery
 import googleapiclient.errors
 from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 from googleapiclient.http import MediaFileUpload
 
 def get_youtube_client():
@@ -13,9 +14,17 @@ def get_youtube_client():
         
     try:
         creds = Credentials.from_authorized_user_file("token.json")
+        if creds and creds.expired and creds.refresh_token:
+            print("Refreshing expired YouTube OAuth Access Token...")
+            creds.refresh(Request())
+            try:
+                with open("token.json", "w") as f:
+                    f.write(creds.to_json())
+            except Exception:
+                pass
         return googleapiclient.discovery.build("youtube", "v3", credentials=creds)
     except Exception as e:
-        print(f"Error initializing YouTube client: {e}")
+        print(f"Error initializing or refreshing YouTube client: {e}")
         return None
 
 def upload_to_youtube(video_path: str, title: str, description: str, tags: list, thumbnail_path: str = None):
