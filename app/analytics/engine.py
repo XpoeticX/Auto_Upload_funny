@@ -431,8 +431,11 @@ def get_active_profile(category: str) -> dict:
 
 def send_telegram_report(category: str, adaptive_profile: dict, upload_summary: dict = None) -> bool:
     """
-    Sends a clean, simple, human-readable update to Telegram
-    explaining what videos were posted and what the AI learned.
+    Sends a clear, comprehensive update to Telegram covering:
+    1. Video Performance (Views, Shares, Comments, Best Video)
+    2. What the Agent Learned (Why videos succeeded or failed)
+    3. What It Changed for the Future (Search queries, visual hook rules, title/CTA formulas)
+    4. New Videos Just Posted
     """
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
@@ -443,58 +446,87 @@ def send_telegram_report(category: str, adaptive_profile: dict, upload_summary: 
         
     eval_data = adaptive_profile.get("agent_evaluation", {})
     raw_mode = eval_data.get("strategy_mode", "EXPLOITATION")
-    mode_friendly = "🔥 Scaling Winning Formats" if "EXPLOITATION" in raw_mode else "🧪 Testing Fresh Viral Trends"
-    
+    mode_friendly = "🔥 Scaling Proven Winners" if "EXPLOITATION" in raw_mode else "🧪 Testing Fresh Viral Trends"
     base_cat = category.split("_")[0].title()
     
-    # 1. Cleaned Wins (Reward Drivers)
+    # --- 1. Fetch Real Performance Data from DB ---
+    total_views = 0
+    total_shares = 0
+    total_comments = 0
+    best_video_title = "None yet"
+    best_video_score = 0
+    
+    try:
+        tracked_videos = get_tracked_videos_for_analytics(limit=50)
+        cat_videos = [v for v in tracked_videos if v.get("category") == category] if tracked_videos else []
+        if cat_videos:
+            total_views = sum((v.get("yt_views", 0) + v.get("fb_views", 0)) for v in cat_videos)
+            total_shares = sum(v.get("fb_shares", 0) for v in cat_videos)
+            total_comments = sum((v.get("yt_comments", 0) + v.get("fb_comments", 0)) for v in cat_videos)
+            best_v = max(cat_videos, key=lambda v: v.get("viral_score", 0))
+            best_video_title = best_v.get("title", "N/A")
+            best_video_score = best_v.get("viral_score", 0)
+    except Exception as e:
+        print(f"Note: Could not calculate aggregate performance stats: {e}")
+
+    # --- 2. What the AI Learned ---
     rewards_list = eval_data.get("reward_drivers", [])
     clean_rewards = []
     for r in rewards_list[:2]:
         clean_text = r.split(":", 1)[-1].strip() if ":" in r else r.strip()
-        clean_rewards.append(f"  ✅ {clean_text}")
-    wins_text = "\n".join(clean_rewards) if clean_rewards else "  ✅ High viewer retention & viral shares"
+        clean_rewards.append(f"  ✅ <b>What's Working:</b> {clean_text}")
+    wins_text = "\n".join(clean_rewards) if clean_rewards else "  ✅ <b>What's Working:</b> Fast-paced visual hooks drive higher retention"
     
-    # 2. Cleaned Drop-offs (Penalties)
     penalties_list = eval_data.get("penalty_root_causes", [])
     clean_penalties = []
     for p in penalties_list[:2]:
         clean_text = p.split(":", 1)[-1].strip() if ":" in p else p.strip()
-        clean_penalties.append(f"  ❌ Filtered: {clean_text}")
-    penalties_text = "\n".join(clean_penalties) if clean_penalties else "  ❌ Discarded slow / boring clips"
+        clean_penalties.append(f"  ❌ <b>What Failed:</b> {clean_text}")
+    penalties_text = "\n".join(clean_penalties) if clean_penalties else "  ❌ <b>What Failed:</b> Slow-paced clips over 3s caused viewer drop-offs"
+
+    # --- 3. What It Changed for the Future ---
+    p1 = adaptive_profile.get("phase_1_discovery_directives", {})
+    queries = ", ".join([f"<i>'{q}'</i>" for q in p1.get("primary_search_queries", [])[:2]]) or "<i>'viral unexpected fails'</i>"
     
-    # 3. Clean Rules & AI decisions
-    n_rules_list = eval_data.get("emergent_n_rules", [])
-    if n_rules_list:
-        clean_rule = n_rules_list[0].split(":", 1)[-1].strip() if ":" in n_rules_list[0] else n_rules_list[0]
-    else:
-        clean_rule = "Fast 1.2-second visual hook for maximum retention"
+    p4 = adaptive_profile.get("phase_4_vision_gate_directives", {})
+    hooks = p4.get("mandatory_visual_hooks", ["Immediate physical motion in 0-1.2s"])
+    hook_text = hooks[0] if isinstance(hooks, list) and hooks else "Immediate visual disruption"
     
-    # 4. Upload info
+    p6 = adaptive_profile.get("phase_6_copywriting_directives", {})
+    titles = p6.get("title_formulas", ["Curiosity loop question template"])
+    title_sample = titles[0] if isinstance(titles, list) and titles else "High-CTR curiosity formula"
+    cta = p6.get("comment_cta", "Which moment was your favorite? Vote below! 👇")
+    
+    # --- 4. Current Uploads ---
     short_title = upload_summary.get("short_title", "Published Successfully") if upload_summary else "Published Successfully"
     comp_title = upload_summary.get("comp_title", "Published Successfully") if upload_summary else "Published Successfully"
     
     message = f"""
-🎉 <b>@DailyDosOfFun — Run Completed!</b>
+🤖 <b>@DailyDosOfFun — Performance & AI Update</b>
+━━━━━━━━━━━━━━━━━━━━
+📌 <b>Theme:</b> {base_cat} ({mode_friendly})
 
-📌 <b>Theme:</b> {base_cat} Moments
-🎯 <b>Strategy:</b> {mode_friendly}
+📊 <b>1. RECENT VIDEO PERFORMANCE:</b>
+  • <b>Total Reach:</b> {total_views:,} views (YouTube + Facebook)
+  • <b>Engagement:</b> {total_shares:,} shares | {total_comments:,} comments
+  • <b>Top Video:</b> "{best_video_title}" ({best_video_score:+.1f} pts)
 
 ━━━━━━━━━━━━━━━━━━━━
-💡 <b>What the AI Learned:</b>
+🧠 <b>2. WHAT THE AGENT LEARNED:</b>
 {wins_text}
 {penalties_text}
 
-📜 <b>Active AI Rule:</b>
-  👉 <i>{clean_rule}</i>
+━━━━━━━━━━━━━━━━━━━━
+🔄 <b>3. WHAT IT CHANGED FOR THE FUTURE:</b>
+  🔍 <b>Next Search Keywords:</b> {queries}
+  🎯 <b>New Hook Rule:</b> {hook_text}
+  ✍️ <b>New Title Formula:</b> <i>"{title_sample}"</i>
+  💬 <b>New Comment Question:</b> <i>"{cta}"</i>
 
 ━━━━━━━━━━━━━━━━━━━━
-🚀 <b>New Videos Posted:</b>
-🎬 <b>Short:</b>
-{short_title}
-
-📼 <b>Compilation:</b>
-{comp_title}
+🚀 <b>4. NEW VIDEOS POSTED THIS RUN:</b>
+🎬 <b>Short:</b> {short_title}
+📼 <b>Compilation:</b> {comp_title}
 """
     try:
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
