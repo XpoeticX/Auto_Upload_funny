@@ -100,23 +100,33 @@ def analyze_video_and_generate_script(video_path: str, is_short: bool = False, p
     HOOK_END: <float timestamp>
     """
     
-    # Robust fallback chain covering all possible model strings
+    # Model Waterfall: Best model first (3.7 -> 3.6 -> 3.5 -> 2.5 -> 2.0 -> 1.5)
     model_names = [
+        "gemini-3.7-flash",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
         "gemini-2.5-flash",
         "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-3.7-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-1.5-pro"
+        "gemini-1.5-flash"
     ]
     
     response = None
     uploaded_file = None
     client = None
     
+    global _LOCKED_KEY_INDEX
+    if '_LOCKED_KEY_INDEX' not in globals():
+        _LOCKED_KEY_INDEX = 0
+        
+    num_keys = len(api_keys)
+    if num_keys == 0:
+        return fallback
+    
     for model in model_names:
         success = False
-        for api_key in api_keys:
+        for offset in range(num_keys):
+            key_idx = (_LOCKED_KEY_INDEX + offset) % num_keys
+            api_key = api_keys[key_idx]
             try:
                 client = genai.Client(api_key=api_key)
                 uploaded_file = client.files.upload(file=video_path)
@@ -130,17 +140,20 @@ def analyze_video_and_generate_script(video_path: str, is_short: bool = False, p
                     print("\nGemini video processing failed.")
                     return fallback
                 
-                print(f"\nAttempting generation with {model} on key ending in ...{api_key[-4:]}")
+                print(f"\nAttempting generation with {model} on key #{key_idx + 1} (...{api_key[-4:]})")
                 response = client.models.generate_content(
                     model=model,
                     contents=[uploaded_file, prompt]
                 )
                 if response and response.text:
                     success = True
+                    # Lock onto this working key for future calls
+                    _LOCKED_KEY_INDEX = key_idx
+                    print(f"[VISION] Locked active API key index: #{key_idx + 1} (Model: {model})")
                     break
             except Exception as e:
                 err_str = str(e)
-                print(f"\nModel {model} notice on key ...{api_key[-4:]}: {err_str[:80]}")
+                print(f"\nModel {model} notice on key #{key_idx + 1}: {err_str[:70]}. Trying next API key...")
                 continue
         if success:
             break

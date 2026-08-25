@@ -369,16 +369,29 @@ def run_meta_optimizer(category: str, platform: str = "youtube", epsilon: float 
     ]
     api_keys = [k for k in api_keys if k and str(k).strip() != "None"]
     
+    # Model Waterfall: Best model first (3.7 -> 3.6 -> 3.5 -> 2.5 -> 2.0 -> 1.5)
     model_names = [
+        "gemini-3.7-flash",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
         "gemini-2.5-flash",
         "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-3.7-flash",
-        "gemini-2.5-flash-lite"
+        "gemini-1.5-flash"
     ]
     
+    global _LOCKED_KEY_INDEX
+    if '_LOCKED_KEY_INDEX' not in globals():
+        _LOCKED_KEY_INDEX = 0
+        
+    num_keys = len(api_keys)
+    if num_keys == 0:
+        return get_active_profile(category, platform=platform)
+
     for model in model_names:
-        for api_key in api_keys:
+        # Start from the currently locked key and cycle through all keys
+        for offset in range(num_keys):
+            key_idx = (_LOCKED_KEY_INDEX + offset) % num_keys
+            api_key = api_keys[key_idx]
             try:
                 client = genai.Client(api_key=api_key)
                 response = client.models.generate_content(
@@ -393,12 +406,15 @@ def run_meta_optimizer(category: str, platform: str = "youtube", epsilon: float 
                         cleaned_text = cleaned_text.split("```")[1].split("```")[0].strip()
                     
                     profile_data = json.loads(cleaned_text)
-                    # Validate and sanitize LLM output against strict Pydantic rules
                     validated_profile = AdaptiveProfileSchema(**profile_data).model_dump()
                     save_creative_profile(profile_key, validated_profile)
+                    
+                    # Lock onto this working key for future calls
+                    _LOCKED_KEY_INDEX = key_idx
+                    print(f"[{platform.upper()}] Locked active API key index: #{key_idx + 1} (Model: {model})")
                     return validated_profile
             except Exception as e:
-                print(f"Schema validation notice for {platform}: {e}. Trying fallback...")
+                print(f"Model {model} notice on key #{key_idx + 1}: {str(e)[:70]}. Trying next API key...")
                 continue
                 
     return get_active_profile(category, platform=platform)
