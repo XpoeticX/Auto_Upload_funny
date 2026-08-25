@@ -1,8 +1,9 @@
 import os
 import json
 import requests
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from google import genai
+from pydantic import BaseModel, Field, field_validator
 from app.database import (
     get_tracked_videos_for_analytics,
     update_video_metrics,
@@ -14,6 +15,66 @@ from app.upload.youtube import get_youtube_client
 import math
 import random
 import datetime
+
+# --- PRODUCTION GUARDRAIL: PYDANTIC SCHEMA VALIDATION & RULE CAP ---
+class AgentEvaluationSchema(BaseModel):
+    reward_trend: str = Field(default="ACTIVE")
+    strategy_mode: str = Field(default="EXPLOITATION")
+    penalty_root_causes: List[str] = Field(default_factory=list)
+    reward_drivers: List[str] = Field(default_factory=list)
+    emergent_n_rules: List[str] = Field(default_factory=list)
+
+    @field_validator("emergent_n_rules")
+    def cap_active_rules(cls, v):
+        # Strict Rule Cap: Sliding window of top 5 active emergent rules prevents rule bloat and drift
+        return [r.strip() for r in v if r and isinstance(r, str) and r.strip()][:5]
+
+    @field_validator("penalty_root_causes", "reward_drivers")
+    def limit_causes(cls, v):
+        return [item.strip() for item in v if item and isinstance(item, str) and item.strip()][:4]
+
+class DiscoveryDirectivesSchema(BaseModel):
+    pivoted_content_theme: Optional[str] = None
+    primary_search_queries: List[str] = Field(default_factory=list)
+    target_subcategories: List[str] = Field(default_factory=list)
+
+    @field_validator("primary_search_queries")
+    def validate_queries(cls, v):
+        clean = [q.strip() for q in v if q and isinstance(q, str) and len(q.strip()) > 3][:5]
+        return clean or ["viral unexpected funny moments"]
+
+class VisionGateDirectivesSchema(BaseModel):
+    optimal_clip_duration: str = Field(default="10-16 seconds")
+    mandatory_visual_hooks: List[str] = Field(default_factory=list)
+    instant_reject_triggers: List[str] = Field(default_factory=list)
+    custom_evaluation_rules: List[str] = Field(default_factory=list)
+
+    @field_validator("mandatory_visual_hooks", "instant_reject_triggers", "custom_evaluation_rules")
+    def limit_vision_rules(cls, v):
+        return [r.strip() for r in v if r and isinstance(r, str) and r.strip()][:4]
+
+class CopywritingDirectivesSchema(BaseModel):
+    title_formulas: List[str] = Field(default_factory=list)
+    description_intro: Optional[str] = None
+    comment_cta: str = Field(default="Which clip made you laugh the hardest? Vote below! 👇")
+    hashtag_stack: List[str] = Field(default_factory=list)
+    tag_keywords: List[str] = Field(default_factory=list)
+
+    @field_validator("title_formulas")
+    def validate_titles(cls, v):
+        clean = [t.strip() for t in v if t and isinstance(t, str) and len(t.strip()) > 5][:4]
+        return clean or ["Wait till you see what happens! 😂 #viral #shorts"]
+
+    @field_validator("hashtag_stack")
+    def validate_hashtags(cls, v):
+        clean = [h.strip() if h.startswith("#") else f"#{h.strip()}" for h in v if h and isinstance(h, str) and h.strip()][:8]
+        return clean or ["#shorts", "#viral", "#funny", "#trending"]
+
+class AdaptiveProfileSchema(BaseModel):
+    agent_evaluation: AgentEvaluationSchema = Field(default_factory=AgentEvaluationSchema)
+    phase_1_discovery_directives: DiscoveryDirectivesSchema = Field(default_factory=DiscoveryDirectivesSchema)
+    phase_4_vision_gate_directives: VisionGateDirectivesSchema = Field(default_factory=VisionGateDirectivesSchema)
+    phase_6_copywriting_directives: CopywritingDirectivesSchema = Field(default_factory=CopywritingDirectivesSchema)
 
 def calculate_reward_points(yt_views: int = 0, yt_likes: int = 0, yt_comments: int = 0,
                            fb_views: int = 0, fb_shares: int = 0, fb_comments: int = 0, fb_likes: int = 0,
@@ -297,9 +358,12 @@ def run_meta_optimizer(category: str, epsilon: float = 0.20) -> dict:
                         cleaned_text = cleaned_text.split("```")[1].split("```")[0].strip()
                     
                     profile_data = json.loads(cleaned_text)
-                    save_creative_profile(category, profile_data)
-                    return profile_data
+                    # Validate and sanitize LLM output against strict Pydantic rules
+                    validated_profile = AdaptiveProfileSchema(**profile_data).model_dump()
+                    save_creative_profile(category, validated_profile)
+                    return validated_profile
             except Exception as e:
+                print(f"Schema validation / LLM parse notice: {e}. Trying fallback...")
                 continue
                 
     return get_active_profile(category)
