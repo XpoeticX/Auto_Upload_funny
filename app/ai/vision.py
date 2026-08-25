@@ -102,13 +102,12 @@ def analyze_video_and_generate_script(video_path: str, is_short: bool = False, p
     
     # Robust fallback chain covering all possible model strings
     model_names = [
-        "gemini-3.7-flash",
-        "gemini-3.6-flash",
-        "gemini-3.5-flash",
-        "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite",
         "gemini-2.5-flash",
-        "gemini-2.5-flash-lite"
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-3.7-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-1.5-pro"
     ]
     
     response = None
