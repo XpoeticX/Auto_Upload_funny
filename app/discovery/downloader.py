@@ -100,6 +100,10 @@ def download_video(url: str, output_path: str) -> str:
         'outtmpl': output_path,
         'quiet': False,
         'no_warnings': True,
+        'socket_timeout': 20,
+        'retries': 2,
+        'fragment_retries': 2,
+        'skip_download': False
     }
     
     try:
