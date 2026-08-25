@@ -19,10 +19,8 @@ def calculate_reward_points(yt_views: int = 0, yt_likes: int = 0, yt_comments: i
                            fb_views: int = 0, fb_shares: int = 0, fb_comments: int = 0, fb_likes: int = 0,
                            benchmark_views: int = 1000, recorded_at_str: str = None) -> float:
     """
-    Mathematical Reward Function with Multi-Window Exponential Time-Decay:
-    R_i = [ (Views / Benchmark * 20) + (Shares / Views * 100) + (Comments / Views * 50) + Bonuses - Penalties ] * Weight(t)
-    
-    Time-Decay: Weight(t) = exp( -ln(2)/7.0 * delta_days ) (7-day half-life for algorithmic freshness)
+    Mathematical Reward Function with Laplace Smoothing, Two-Stage 48h Evaluation, and Time-Decay:
+    R_i = [ (Views / Benchmark * 20) + (Shares / (Views + 100) * 100) + (Comments / (Views + 100) * 50) + Bonuses - Penalties ] * Weight(t)
     """
     total_views = yt_views + fb_views
     total_shares = fb_shares
@@ -32,47 +30,52 @@ def calculate_reward_points(yt_views: int = 0, yt_likes: int = 0, yt_comments: i
     # 1. Reach Component
     reach_score = (total_views / max(1, benchmark_views)) * 20.0
     
-    # 2. Viral Multiplier (Shares/Views)
-    share_ratio = (total_shares / max(1, total_views)) * 100.0
+    # 2. Viral & Engagement Multipliers with Laplace Smoothing (Prevents low-sample skew)
+    share_ratio = (total_shares / (total_views + 100.0)) * 100.0
+    comment_ratio = (total_comments / (total_views + 100.0)) * 50.0
     
-    # 3. Engagement Multiplier (Comments/Views)
-    comment_ratio = (total_comments / max(1, total_views)) * 50.0
+    # 3. Calculate Age in Hours and Time-Decay
+    delta_hours = 0.0
+    delta_days = 0.0
+    time_weight = 1.0
     
-    # 4. Penalties & Bonuses
+    if recorded_at_str:
+        try:
+            clean_ts = recorded_at_str.replace("Z", "+00:00")
+            rec_dt = datetime.datetime.fromisoformat(clean_ts)
+            now_dt = datetime.datetime.now(datetime.timezone.utc)
+            delta_sec = max(0.0, (now_dt - rec_dt).total_seconds())
+            delta_hours = delta_sec / 3600.0
+            delta_days = delta_sec / 86400.0
+            # 7-day half-life exponential decay
+            time_weight = math.exp(-(math.log(2.0) / 7.0) * delta_days)
+        except Exception:
+            delta_hours = 48.0
+            time_weight = 1.0
+    
+    # 4. Two-Stage Evaluation (48-Hour Seed Probation Window)
     penalty = 0.0
     bonus = 0.0
     
     if total_views >= 50000 or total_shares >= 500:
-        bonus = 100.0
+        bonus = 100.0  # Mega-Viral Tier
     elif total_views >= benchmark_views:
-        bonus = 25.0
+        bonus = 25.0   # Above Benchmark Tier
+    elif delta_hours < 48.0:
+        penalty = 0.0  # 48-Hour Grace Period: Do NOT penalize slow-burn distribution tests
     elif total_views < 100:
-        penalty = 60.0  # Critical Penalty
+        penalty = 60.0 # Critical Penalty (Confirmed dead after 48h)
     elif total_views < 500:
-        penalty = 30.0  # Stagnant Penalty
+        penalty = 30.0 # Stagnant Penalty (Confirmed underperformer after 48h)
         
     raw_reward = reach_score + share_ratio + comment_ratio + bonus - penalty
-    
-    # 5. Multi-Window Time-Decay Weighting
-    time_weight = 1.0
-    if recorded_at_str:
-        try:
-            # Parse ISO timestamp
-            clean_ts = recorded_at_str.replace("Z", "+00:00")
-            rec_dt = datetime.datetime.fromisoformat(clean_ts)
-            now_dt = datetime.datetime.now(datetime.timezone.utc)
-            delta_days = max(0.0, (now_dt - rec_dt).total_seconds() / 86400.0)
-            time_weight = math.exp(-(math.log(2.0) / 7.0) * delta_days)
-        except Exception:
-            time_weight = 1.0
-            
     final_reward = raw_reward * time_weight
     return round(final_reward, 2)
 
 def fetch_and_update_metrics() -> None:
     """
-    Fetches latest performance metrics from YouTube Data API and Facebook Graph API
-    for tracked videos and calculates time-decayed RLAF Reward Points.
+    Fetches latest performance metrics using single-request API batching (1 quota unit for 50 videos)
+    and updates time-decayed RLAF Reward Points.
     """
     print("\n--- [PHASE 8] Refreshing Performance Analytics & Reward Ledger ---")
     tracked_videos = get_tracked_videos_for_analytics(limit=50)
@@ -83,6 +86,18 @@ def fetch_and_update_metrics() -> None:
     youtube = get_youtube_client()
     fb_token = os.environ.get("FB_ACCESS_TOKEN")
 
+    # 1. High-Efficiency Batch Fetch for YouTube (1 Quota Unit for up to 50 Videos)
+    yt_stats_map = {}
+    yt_ids = [item.get("yt_video_id") for item in tracked_videos if item.get("yt_video_id")]
+    if yt_ids and youtube:
+        try:
+            for chunk in [yt_ids[i:i + 50] for i in range(0, len(yt_ids), 50)]:
+                res = youtube.videos().list(part="statistics", id=",".join(chunk)).execute()
+                for entry in res.get("items", []):
+                    yt_stats_map[entry["id"]] = entry.get("statistics", {})
+        except Exception as e:
+            print(f"Error during batched YouTube metric fetch: {e}")
+
     for item in tracked_videos:
         video_id = item.get("video_id")
         yt_id = item.get("yt_video_id")
@@ -92,18 +107,12 @@ def fetch_and_update_metrics() -> None:
         yt_views, yt_likes, yt_comments = 0, 0, 0
         fb_views, fb_shares, fb_comments, fb_likes = 0, 0, 0, 0
 
-        # 1. Fetch YouTube Metrics
-        if yt_id and youtube:
-            try:
-                res = youtube.videos().list(part="statistics", id=yt_id).execute()
-                entries = res.get("items", [])
-                if entries:
-                    stats = entries[0].get("statistics", {})
-                    yt_views = int(stats.get("viewCount", 0))
-                    yt_likes = int(stats.get("likeCount", 0))
-                    yt_comments = int(stats.get("commentCount", 0))
-            except Exception as e:
-                print(f"Could not fetch YouTube metrics for {yt_id}: {e}")
+        # Read from cached YouTube batch
+        if yt_id and yt_id in yt_stats_map:
+            stats = yt_stats_map[yt_id]
+            yt_views = int(stats.get("viewCount", 0))
+            yt_likes = int(stats.get("likeCount", 0))
+            yt_comments = int(stats.get("commentCount", 0))
 
         # 2. Fetch Facebook Metrics
         if fb_id and fb_token:
@@ -144,7 +153,7 @@ def fetch_and_update_metrics() -> None:
 
 def run_meta_optimizer(category: str, epsilon: float = 0.20) -> dict:
     """
-    Autonomous Reinforcement Learning Agent with Epsilon-Greedy Strategy:
+    Autonomous Reinforcement Learning Agent with Epsilon-Greedy Strategy & Structured Attribution Taxonomy:
     - Exploit (80%): Refines & scales proven winning hook patterns and high-CTR title formulas.
     - Explore (20%): Intentionally tests novel wild-card keywords and emerging subgenres to avoid local optima.
     """
@@ -187,7 +196,8 @@ def run_meta_optimizer(category: str, epsilon: float = 0.20) -> dict:
 
     REWARD POLICY:
     - High Views + High Shares + High Comments = POSITIVE REWARD (+20 to +100 Points).
-    - Stagnant / Flatlining / Low Retention = HEAVY PENALTY (-30 to -60 Points).
+    - Stagnant / Flatlining / Low Retention (>48h) = HEAVY PENALTY (-30 to -60 Points).
+    - Videos under 48h are in seed testing phase.
     - Goal: Maximize long-term point yield by dynamically adapting ALL creative parameters.
 
     CURRENT AGENT STATE & HISTORICAL PERFORMANCE LEDGER:
@@ -199,25 +209,18 @@ def run_meta_optimizer(category: str, epsilon: float = 0.20) -> dict:
 
     {strategy_instruction}
 
-    ANALYSIS REQUIRED:
-    1. Identify the root cause of all PENALTY (negative point) videos:
-       - What visual elements, pacing, or title styles caused drop-offs?
-    2. Identify the common patterns of all REWARD (positive point) videos:
-       - What triggered the algorithms to push impressions?
-
-    AUTONOMOUS DECISION-MAKING:
-    You have total authority to override and select:
-    - Search Queries & Discovery Keywords for Phase 1.
-    - Visual Hook Validation Criteria for Phase 4.
-    - Title Archetypes, Meme Captions, and Comment CTAs for Phase 6.
+    ATTRIBUTION TAXONOMY CONSTRAINTS:
+    When assigning penalty causes and reward drivers, choose from these standardized categories:
+    - Penalty Tags: [HOOK_PACING_LAG, WEAK_CURIOSITY_GAP, NICHE_SATURATION, FLAT_CTA, LOW_CONTRAST_SETUP, AUDIO_MISMATCH]
+    - Reward Tags: [IMMEDIATE_PHYSICAL_TWIST, STRONG_CURIOSITY_LOOP, HIGH_DEBATE_CTA, EMOTIONAL_RELATABILITY, FAST_PACED_EDIT, SENSORY_HOOK]
 
     OUTPUT FORMAT (Strictly valid JSON only, no markdown wrappers):
     {{
       "agent_evaluation": {{
         "reward_trend": "GROWING",
         "strategy_mode": "{'EXPLORATION' if is_exploration else 'EXPLOITATION'}",
-        "penalty_root_causes": ["string"],
-        "reward_drivers": ["string"]
+        "penalty_root_causes": ["HOOK_PACING_LAG: reason description"],
+        "reward_drivers": ["IMMEDIATE_PHYSICAL_TWIST: reason description"]
       }},
       "phase_1_discovery_directives": {{
         "primary_search_queries": [
