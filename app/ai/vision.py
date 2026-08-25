@@ -119,21 +119,17 @@ def analyze_video_and_generate_script(video_path: str, is_short: bool = False, p
         success = False
         for api_key in api_keys:
             try:
-                # Initialize client with current key
                 client = genai.Client(api_key=api_key)
+                uploaded_file = client.files.upload(file=video_path)
                 
-                # We need to upload the file once per successful client initialization
-                if not uploaded_file:
-                    uploaded_file = client.files.upload(file=video_path)
-                    
-                    while str(uploaded_file.state).endswith("PROCESSING") or (hasattr(uploaded_file.state, 'name') and uploaded_file.state.name == "PROCESSING"):
-                        print(".", end="", flush=True)
-                        time.sleep(2)
-                        uploaded_file = client.files.get(name=uploaded_file.name)
-                    
-                    if str(uploaded_file.state).endswith("FAILED") or (hasattr(uploaded_file.state, 'name') and uploaded_file.state.name == "FAILED"):
-                        print("\nGemini video processing failed.")
-                        return fallback
+                while str(uploaded_file.state).endswith("PROCESSING") or (hasattr(uploaded_file.state, 'name') and uploaded_file.state.name == "PROCESSING"):
+                    print(".", end="", flush=True)
+                    time.sleep(2)
+                    uploaded_file = client.files.get(name=uploaded_file.name)
+                
+                if str(uploaded_file.state).endswith("FAILED") or (hasattr(uploaded_file.state, 'name') and uploaded_file.state.name == "FAILED"):
+                    print("\nGemini video processing failed.")
+                    return fallback
                 
                 print(f"\nAttempting generation with {model} on key ending in ...{api_key[-4:]}")
                 response = client.models.generate_content(
@@ -145,7 +141,7 @@ def analyze_video_and_generate_script(video_path: str, is_short: bool = False, p
                     break
             except Exception as e:
                 err_str = str(e)
-                print(f"\nModel {model} failed on key ...{api_key[-4:]}: {err_str[:80]}")
+                print(f"\nModel {model} notice on key ...{api_key[-4:]}: {err_str[:80]}")
                 continue
         if success:
             break
