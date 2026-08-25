@@ -431,8 +431,8 @@ def get_active_profile(category: str) -> dict:
 
 def send_telegram_report(category: str, adaptive_profile: dict, upload_summary: dict = None) -> bool:
     """
-    Sends a formatted executive summary of the RLAF analytics, learning drivers,
-    and dynamic pipeline adjustments to a Telegram Channel or Group.
+    Sends a clean, simple, human-readable update to Telegram
+    explaining what videos were posted and what the AI learned.
     """
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
@@ -442,70 +442,59 @@ def send_telegram_report(category: str, adaptive_profile: dict, upload_summary: 
         return False
         
     eval_data = adaptive_profile.get("agent_evaluation", {})
-    reward_trend = eval_data.get("reward_trend", "ACTIVE")
-    mode = eval_data.get("strategy_mode", "EXPLOITATION")
+    raw_mode = eval_data.get("strategy_mode", "EXPLOITATION")
+    mode_friendly = "🔥 Scaling Winning Formats" if "EXPLOITATION" in raw_mode else "🧪 Testing Fresh Viral Trends"
     
+    base_cat = category.split("_")[0].title()
+    
+    # 1. Cleaned Wins (Reward Drivers)
     rewards_list = eval_data.get("reward_drivers", [])
-    rewards = "\n".join([f"  • {r}" for r in rewards_list[:3]]) if rewards_list else "  • Scaling high-retention reach"
+    clean_rewards = []
+    for r in rewards_list[:2]:
+        clean_text = r.split(":", 1)[-1].strip() if ":" in r else r.strip()
+        clean_rewards.append(f"  ✅ {clean_text}")
+    wins_text = "\n".join(clean_rewards) if clean_rewards else "  ✅ High viewer retention & viral shares"
     
+    # 2. Cleaned Drop-offs (Penalties)
     penalties_list = eval_data.get("penalty_root_causes", [])
-    penalties = "\n".join([f"  • {p}" for p in penalties_list[:3]]) if penalties_list else "  • Zero major drop-off penalties"
+    clean_penalties = []
+    for p in penalties_list[:2]:
+        clean_text = p.split(":", 1)[-1].strip() if ":" in p else p.strip()
+        clean_penalties.append(f"  ❌ Filtered: {clean_text}")
+    penalties_text = "\n".join(clean_penalties) if clean_penalties else "  ❌ Discarded slow / boring clips"
     
+    # 3. Clean Rules & AI decisions
     n_rules_list = eval_data.get("emergent_n_rules", [])
-    n_rules = "\n".join([f"  📜 <i>{rule}</i>" for rule in n_rules_list[:3]]) if n_rules_list else "  📜 Maximize early audience retention & share velocity"
+    if n_rules_list:
+        clean_rule = n_rules_list[0].split(":", 1)[-1].strip() if ":" in n_rules_list[0] else n_rules_list[0]
+    else:
+        clean_rule = "Fast 1.2-second visual hook for maximum retention"
     
-    p1 = adaptive_profile.get("phase_1_discovery_directives", {})
-    queries = "\n".join([f"  🔍 <i>{q}</i>" for q in p1.get("primary_search_queries", [])[:3]]) or "  🔍 Baseline queries"
-    
-    p4 = adaptive_profile.get("phase_4_vision_gate_directives", {})
-    hooks = "\n".join([f"  🎯 {h}" for h in p4.get("mandatory_visual_hooks", [])[:2]]) or "  🎯 Immediate visual motion"
-    rejects = "\n".join([f"  ⛔ {r}" for r in p4.get("instant_reject_triggers", [])[:2]]) or "  ⛔ Slow build-up"
-    
-    p6 = adaptive_profile.get("phase_6_copywriting_directives", {})
-    title_formulas = "\n".join([f"  ✍️ <i>{t}</i>" for t in p6.get("title_formulas", [])[:2]]) or "  ✍️ Curiosity loop templates"
-    cta = p6.get("comment_cta", "Which moment was your favorite? Vote below! 👇")
-    
-    short_title = upload_summary.get("short_title", "Published") if upload_summary else "Published"
-    comp_title = upload_summary.get("comp_title", "Published") if upload_summary else "Published"
+    # 4. Upload info
+    short_title = upload_summary.get("short_title", "Published Successfully") if upload_summary else "Published Successfully"
+    comp_title = upload_summary.get("comp_title", "Published Successfully") if upload_summary else "Published Successfully"
     
     message = f"""
-🤖 <b>[RLAF AGENT REPORT] @DailyDosOfFun</b>
-━━━━━━━━━━━━━━━━━━━━
-📂 <b>Category:</b> <code>{category.upper()}</code>
-⚡ <b>Strategy Mode:</b> <b>{mode}</b>
-📈 <b>Reward Trend:</b> <b>{reward_trend}</b>
+🎉 <b>@DailyDosOfFun — Run Completed!</b>
 
-🏆 <b>Top Reward Drivers (What's Winning):</b>
-{rewards}
-
-⚠️ <b>Penalty Root Causes (What Got Cut):</b>
-{penalties}
+📌 <b>Theme:</b> {base_cat} Moments
+🎯 <b>Strategy:</b> {mode_friendly}
 
 ━━━━━━━━━━━━━━━━━━━━
-🔄 <b>AUTONOMOUS CHANGES & N-RULES:</b>
+💡 <b>What the AI Learned:</b>
+{wins_text}
+{penalties_text}
 
-📜 <b>Emergent Agent Rules (Learned from Data):</b>
-{n_rules}
-
-🔍 <b>New Discovery Search Queries:</b>
-{queries}
-
-🎯 <b>Mandatory Visual Hooks (Vision Gate):</b>
-{hooks}
-
-⛔ <b>Instant Reject Triggers:</b>
-{rejects}
-
-✍️ <b>Dynamic Title Formulas:</b>
-{title_formulas}
-
-💬 <b>Optimized Comment CTA:</b>
-  <i>"{cta}"</i>
+📜 <b>Active AI Rule:</b>
+  👉 <i>{clean_rule}</i>
 
 ━━━━━━━━━━━━━━━━━━━━
-🚀 <b>LATEST UPLOADS POSTED:</b>
-🎬 <b>Short:</b> {short_title}
-📼 <b>Compilation:</b> {comp_title}
+🚀 <b>New Videos Posted:</b>
+🎬 <b>Short:</b>
+{short_title}
+
+📼 <b>Compilation:</b>
+{comp_title}
 """
     try:
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
