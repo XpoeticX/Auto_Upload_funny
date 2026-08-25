@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Local Data and Temp Media
+data/temp/*
+data/output/*
+concat_list.txt
+
+# Local tokens and secrets
+token.json
+client_secrets*.json
+*.env
+.env

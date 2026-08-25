@@ -1,0 +1,11 @@
+praw
+yt-dlp
+ffmpeg-python
+google-genai
+supabase
+Pillow
+requests
+python-dotenv
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
