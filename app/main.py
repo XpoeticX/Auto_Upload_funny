@@ -228,13 +228,12 @@ def main():
         processed_compilation_shorts = []
         compilation_titles = []
         total_duration = 0.0
-        MIN_DURATION = 3 * 60  # 3 minutes minimum for a compilation
-        MAX_DURATION = 15 * 60
-        CLIP_MAX_DURATION = 18.0  # Fast-paced: 15-20s per clip!
+        TARGET_CLIPS = 3  # Fast, viral, and high-retention: 3 punchy clips
+        CLIP_MAX_DURATION = 16.0  # 12-16s per clip
         
         for target_clip in comp_pool:
-            if total_duration >= MIN_DURATION:
-                print(f"Successfully gathered enough clips for the compilation! (Duration: {total_duration}s)")
+            if len(processed_compilation_shorts) >= TARGET_CLIPS:
+                print(f"Successfully gathered {TARGET_CLIPS} viral clips for compilation! (Total: {total_duration:.1f}s)")
                 break
                 
             if 'short_clip_id' in locals() and short_clip_id and target_clip['id'] == short_clip_id:

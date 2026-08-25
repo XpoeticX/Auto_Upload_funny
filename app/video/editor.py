@@ -120,11 +120,12 @@ def normalize_video(input_path: str, output_path: str, is_short: bool = True, ma
             
         out_kwargs = {
             'vcodec': 'libx264',
-            'preset': 'fast',
+            'preset': 'veryfast',
             'crf': 23,
             'acodec': 'aac',
             'audio_bitrate': '128k',
-            'ar': '44100'
+            'ar': '44100',
+            'threads': 4
         }
         
         # Calculate duration
