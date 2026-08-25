@@ -82,19 +82,20 @@ def analyze_video_and_generate_script(video_path: str, is_short: bool = False, p
     3. If the video is completely boring, slow-paced, static, or uninteresting, output ONLY: REJECT
     {short_constraint}
     {islamic_constraint}
-    
     If the video meets safety and engagement standards, generate:
-    1. A highly engaging, clickable YouTube Shorts title that summarizes what happens in the video (include relevant emojis and #shorts #viral, under 80 chars).
-    2. A funny short meme reaction text matching this video (under 8 words, e.g., "Bro thought he was slick 💀", "Wait till you see what happens 😂", "Instant regret level 100 😭").
-    3. A brief 2-sentence engaging description describing why this moment is so funny/entertaining.
-    4. Exact float timestamps in seconds for the peak action window:
+    1. YT_TITLE: A clickable YouTube Shorts title that summarizes what happens (include relevant emojis and #shorts #viral, under 75 chars).
+    2. FB_TITLE: A conversational Facebook Reels title designed to provoke curiosity and shares (under 80 chars).
+    3. MEME_CAPTION: A short funny meme reaction text matching this video (under 8 words, e.g., "Bro thought he was slick 💀", "Wait till you see what happens 😂").
+    4. DESCRIPTION: A brief 2-sentence engaging description describing what happens.
+    5. Exact float timestamps in seconds for the peak action window:
        - HOOK_START: Timestamp in seconds where the immediate hook/action begins (e.g., 0.0 or 1.5)
        - HOOK_END: Timestamp in seconds right after the punchline/twist ends (e.g., 14.5 or 18.0)
     
     Format your response EXACTLY like this:
-    TITLE: <your viral title here>
+    YT_TITLE: <your viral YouTube title here>
+    FB_TITLE: <your viral Facebook title here>
     MEME_CAPTION: <short funny meme caption here>
-    DESCRIPTION: <brief 2-sentence engaging description here>
+    DESCRIPTION: <brief 2-sentence description here>
     HOOK_START: <float timestamp>
     HOOK_END: <float timestamp>
     """
@@ -139,36 +140,39 @@ def analyze_video_and_generate_script(video_path: str, is_short: bool = False, p
                     model=model,
                     contents=[uploaded_file, prompt]
                 )
-                success = True
-                break # Successfully generated, break out of key loop
+                if response and response.text:
+                    success = True
+                    break
             except Exception as e:
-                print(f"Model {model} with key ...{api_key[-4:]} failed ({e}). Trying next key...")
+                err_str = str(e)
+                print(f"\nModel {model} failed on key ...{api_key[-4:]}: {err_str[:80]}")
                 continue
-                
         if success:
-            break # Successfully generated, break out of model loop
+            break
             
-    if not response:
-        print("All Gemini models and keys failed.")
+    if not response or not response.text:
         return fallback
-        
-    raw_text = response.text.strip()
-    print(f"Gemini Raw Output:\n{raw_text}")
-    
-    if "REJECT" in raw_text.upper() and not "TITLE:" in raw_text.upper():
-        print("Gemini rejected this video for safety/appropriateness.")
+
+    text = response.text.strip()
+    if "REJECT" in text.upper() and len(text) < 15:
         return {"rejected": True}
-    
-    title = fallback["title"]
-    meme_caption = "Bro thought he had it 😂💀"
+
+    yt_title = "Funny Moment 😂 #shorts #viral"
+    fb_title = "Wait till you see what happens! 😂"
+    meme_caption = "Wait for it... 🤣"
     description = ""
     hook_start = 0.0
     hook_end = None
     
-    for line in raw_text.split('\n'):
+    for line in text.split('\n'):
         line = line.strip()
-        if line.startswith('TITLE:'):
-            title = line.replace('TITLE:', '').strip()
+        if line.startswith('YT_TITLE:'):
+            yt_title = line.replace('YT_TITLE:', '').strip()
+        elif line.startswith('FB_TITLE:'):
+            fb_title = line.replace('FB_TITLE:', '').strip()
+        elif line.startswith('TITLE:') and yt_title == "Funny Moment 😂 #shorts #viral":
+            yt_title = line.replace('TITLE:', '').strip()
+            fb_title = yt_title
         elif line.startswith('MEME_CAPTION:'):
             meme_caption = line.replace('MEME_CAPTION:', '').strip()
         elif line.startswith('DESCRIPTION:'):
@@ -194,7 +198,9 @@ def analyze_video_and_generate_script(video_path: str, is_short: bool = False, p
         print(f"Failed to delete file from Gemini: {e}")
     
     return {
-        "title": title,
+        "yt_title": yt_title,
+        "fb_title": fb_title,
+        "title": yt_title,
         "meme_caption": meme_caption,
         "description": description,
         "hook_start": hook_start,

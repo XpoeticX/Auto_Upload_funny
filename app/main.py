@@ -47,37 +47,46 @@ def main():
     short_category = f"{primary_mood}_short"
     long_category = f"{primary_mood}_long"
 
-    # --- PHASE 8: CLOSED FEEDBACK LOOP & ADAPTIVE META-OPTIMIZER ---
+    # --- PHASE 8: DECOUPLED PLATFORM RLAF OPTIMIZERS ---
     try:
         fetch_and_update_metrics()
-        short_profile = run_meta_optimizer(short_category)
-        long_profile = run_meta_optimizer(long_category)
-        print(f"Loaded Short Directives for '{short_category}': {short_profile.get('agent_evaluation', {}).get('reward_trend', 'Active')}")
-        print(f"Loaded Long Directives for '{long_category}': {long_profile.get('agent_evaluation', {}).get('reward_trend', 'Active')}")
+        yt_short_profile = run_meta_optimizer(short_category, platform="youtube")
+        fb_short_profile = run_meta_optimizer(short_category, platform="facebook")
+        yt_long_profile = run_meta_optimizer(long_category, platform="youtube")
+        fb_long_profile = run_meta_optimizer(long_category, platform="facebook")
+        print(f"Loaded YouTube Directives: {yt_short_profile.get('agent_evaluation', {}).get('strategy_mode', 'Active')}")
+        print(f"Loaded Facebook Directives: {fb_short_profile.get('agent_evaluation', {}).get('strategy_mode', 'Active')}")
     except Exception as e:
         print(f"Feedback engine notice ({e}). Using baseline profiles.")
-        short_profile = get_active_profile(short_category)
-        long_profile = get_active_profile(long_category)
+        yt_short_profile = get_active_profile(short_category, platform="youtube")
+        fb_short_profile = get_active_profile(short_category, platform="facebook")
+        yt_long_profile = get_active_profile(long_category, platform="youtube")
+        fb_long_profile = get_active_profile(long_category, platform="facebook")
         
-    # 1. Discover a pool of clips for the Short (RLAF Dynamic Discovery)
+    # 1. Discover clips for Short using combined multi-platform discovery queries
     print(f"\n--- Phase 1: Scraping a pool of clips for the Individual Short ({short_category}) ---")
-    custom_short_queries = short_profile.get("phase_1_discovery_directives", {}).get("primary_search_queries", [])
+    custom_yt_queries = yt_short_profile.get("phase_1_discovery_directives", {}).get("primary_search_queries", [])
+    custom_fb_queries = fb_short_profile.get("phase_1_discovery_directives", {}).get("primary_search_queries", [])
+    combined_queries = list(dict.fromkeys(custom_yt_queries + custom_fb_queries))
     
     short_pool = []
-    short_pool.extend(fetch_youtube(15, query_type=primary_mood, custom_queries=custom_short_queries))
+    short_pool.extend(fetch_youtube(15, query_type=primary_mood, custom_queries=combined_queries))
     short_pool.extend(fetch_tiktok(15, query_type=primary_mood))
     short_pool.extend(fetch_imgur(15, query_type=primary_mood))
         
     print(f"Total Short Pool size built: {len(short_pool)} items (YouTube -> TikTok -> Imgur)")
         
-    # 2. Discover clips for Compilation (Long-Form Optimizer)
+    # 2. Discover clips for Compilation
     print(f"\n--- Phase 2: Scraping for Compilation ({long_category}) ---")
     long_compilation = fetch_long_compilation(query_type=primary_mood)
     comp_pool = []
     
     if not long_compilation:
         print("Falling back to downloading individual clips for merging...")
-        custom_long_queries = long_profile.get("phase_1_discovery_directives", {}).get("primary_search_queries", [])
+        custom_long_queries = list(dict.fromkeys(
+            yt_long_profile.get("phase_1_discovery_directives", {}).get("primary_search_queries", []) +
+            fb_long_profile.get("phase_1_discovery_directives", {}).get("primary_search_queries", [])
+        ))
         comp_pool.extend(fetch_youtube(35, query_type=primary_mood, custom_queries=custom_long_queries))
         comp_pool.extend(fetch_tiktok(35, query_type=primary_mood))
         comp_pool.extend(fetch_imgur(35, query_type=primary_mood))
@@ -113,12 +122,13 @@ def main():
         except Exception:
             pass
             
-        ai_data = analyze_video_and_generate_script(downloaded_path, is_short=True, profile=short_profile)
+        ai_data = analyze_video_and_generate_script(downloaded_path, is_short=True, profile=yt_short_profile)
         if ai_data.get("rejected"):
             print(f"Skipping {target_clip['id']} because it was flagged as inappropriate, sad, or not engaging enough for a Short.")
             continue
             
-        dynamic_title = ai_data.get("title", "")
+        yt_title = ai_data.get("yt_title") or ai_data.get("title", "")
+        fb_title = ai_data.get("fb_title") or ai_data.get("title", "")
         
         watermark_handle = "@DailyDosOfFun"
         final_video_path = os.path.join("data", "output", f"final_{target_clip['id']}.mp4")
@@ -130,43 +140,34 @@ def main():
         )
         
         if rendered_path:
-            print(f"Uploading individual Short: {dynamic_title}...")
+            print(f"Uploading individual Short | YT: '{yt_title}' | FB: '{fb_title}'...")
             base_title = target_clip['title'].strip()
             
-            c_gate = short_profile.get("phase_6_copywriting_directives", {})
-            cta_question = c_gate.get("comment_cta") or short_profile.get("high_engagement_cta")
-            hashtags = " ".join(c_gate.get("hashtag_stack", []))
-            custom_intro = c_gate.get("description_intro")
-            custom_tags = c_gate.get("tag_keywords")
-            
-            if primary_mood == "romantic":
-                intro = custom_intro or f"In this quick Short, we react to: {base_title}! ❤️"
-                cta = cta_question or "What's the sweetest couple moment you've ever witnessed? Drop a comment below! 👇"
-                tag_str = hashtags or "#romantic #couplegoals #shorts #reaction #cute #love #wholesome #halallove #viral"
-                tags = custom_tags or ["romantic", "couple goals", "reaction", "shorts", "cute", "love", "wholesome relationships", "viral"]
-            elif primary_mood == "food":
-                intro = custom_intro or f"In this quick Short, we react to: {base_title}! 🍔🍕"
-                cta = cta_question or "Would you eat this or pass? Rate it 1 to 10 in the comments below! 👇"
-                tag_str = hashtags or "#food #streetfood #satisfying #delicious #recipe #foodie #shorts #viral #asmrcooking"
-                tags = custom_tags or ["food", "street food", "satisfying", "delicious", "recipe", "foodie", "cooking", "shorts", "viral", "asmr"]
-            else:
-                intro = custom_intro or f"In this quick Short, we react to: {base_title}! 🤣"
-                cta = cta_question or "How hard did you laugh? Rate 1 to 10 in the comments! 👇"
-                tag_str = hashtags or "#funny #epicfails #comedy #shorts #reaction #hilarious #meme #trynottolaugh #viral"
-                tags = custom_tags or ["funny", "epic fails", "reaction", "shorts", "comedy", "hilarious", "meme", "viral", "try not to laugh"]
-                
-            description = f"""{intro}\n\n💬 QUESTION: {cta}\n\n🔔 SUBSCRIBE to Daily Dose of Fun for daily viral moments: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 Follow our Official Facebook Page: https://www.facebook.com/profile.php?id=100077547189991\n\nVia {target_clip.get('source', 'Unknown')}\n{tag_str}"""
+            # --- Dedicated YouTube Metadata ---
+            yt_c_gate = yt_short_profile.get("phase_6_copywriting_directives", {})
+            yt_cta = yt_c_gate.get("comment_cta") or "Which moment was your favorite? Drop a comment below! 👇"
+            yt_hashtags = " ".join(yt_c_gate.get("hashtag_stack", [])) or "#shorts #viral #funny #reaction"
+            yt_intro = yt_c_gate.get("description_intro") or f"In this quick Short, we react to: {base_title}!"
+            yt_tags = yt_c_gate.get("tag_keywords") or ["shorts", "viral", "funny", "comedy", "reaction"]
+            yt_description = f"""{yt_intro}\n\n💬 QUESTION: {yt_cta}\n\n🔔 SUBSCRIBE to Daily Dose of Fun for daily viral moments: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 Follow our Official Facebook Page: https://www.facebook.com/profile.php?id=100077547189991\n\nVia {target_clip.get('source', 'Unknown')}\n{yt_hashtags}"""
+
+            # --- Dedicated Facebook Metadata ---
+            fb_c_gate = fb_short_profile.get("phase_6_copywriting_directives", {})
+            fb_cta = fb_c_gate.get("comment_cta") or "Tag a friend who needs to see this! 😂👇"
+            fb_hashtags = " ".join(fb_c_gate.get("hashtag_stack", [])) or "#reels #viral #comedy #epicfails"
+            fb_intro = fb_c_gate.get("description_intro") or f"Wait till the end! 🤣 {base_title}"
+            fb_description = f"""{fb_intro}\n\n💬 {fb_cta}\n\n📱 Follow Daily Dose of Fun for daily laughs: https://www.facebook.com/profile.php?id=100077547189991\n🔔 YouTube: https://www.youtube.com/@DailyDosOfFun-q2t\n\n{fb_hashtags}"""
                 
             thumb_path = os.path.join("data", "output", f"thumb_{target_clip['id']}.jpg")
             generate_thumbnail(rendered_path, thumb_path)
             
-            yt_res = upload_to_youtube(rendered_path, dynamic_title, description, tags, thumbnail_path=thumb_path)
-            fb_res = upload_to_facebook(rendered_path, dynamic_title, description, is_compilation=False, thumbnail_path=thumb_path)
+            yt_res = upload_to_youtube(rendered_path, yt_title, yt_description, yt_tags, thumbnail_path=thumb_path)
+            fb_res = upload_to_facebook(rendered_path, fb_title, fb_description, is_compilation=False, thumbnail_path=thumb_path)
             
             # Log metrics tracking into Supabase with short_category tag
             log_video_analytics(
                 video_id=target_clip['id'],
-                title=dynamic_title,
+                title=yt_title,
                 category=short_category,
                 hook_style=target_clip.get('source', 'Short'),
                 yt_id=str(yt_res) if yt_res and str(yt_res) != "True" else None,
@@ -175,7 +176,7 @@ def main():
             
             mark_video_used(target_clip['id'], target_clip['title'])
             short_clip_id = target_clip['id']
-            uploaded_short_title = dynamic_title
+            uploaded_short_title = f"YT: '{yt_title}' | FB: '{fb_title}'"
             short_success = True
             break  # Stop after 1 successful short
             
@@ -305,43 +306,41 @@ def main():
             compilation_path = os.path.join("data", "output", "compilation.mp4")
             merged_path = merge_compilation(processed_compilation_shorts, compilation_path)
             if merged_path:
-                comp_title, dynamic_summary = generate_compilation_details(compilation_titles, mood=primary_mood, profile=long_profile)
+                yt_comp_title, yt_summary = generate_compilation_details(compilation_titles, mood=primary_mood, profile=yt_long_profile)
+                fb_comp_title, fb_summary = generate_compilation_details(compilation_titles, mood=primary_mood, profile=fb_long_profile)
                 
-                if primary_mood == "romantic":
-                    comp_description = f"""{dynamic_summary}\n\n❤️ WHICH MOMENT WAS YOUR FAVORITE? Drop your vote in the comments below! 👇\n\n🔔 NEVER MISS A MOMENT: Subscribe & tap the bell for daily romantic compilations: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 FOLLOW US ON FACEBOOK for exclusive reels: https://www.facebook.com/profile.php?id=100077547189991\n\n#romantic #couplegoals #cute #compilation #reaction #wholesome #relationships #love #trending"""
-                    comp_tags = ["romantic", "couple goals", "cute", "compilation", "wholesome", "relationships", "love", "viral"]
-                elif primary_mood == "food":
-                    comp_description = f"""{dynamic_summary}\n\n🍕 WHICH DISH LOOKS THE TASTIEST? Vote in the comments below! 👇\n\n🔔 SUBSCRIBE to Daily Dose of Fun for daily mouthwatering food compilations: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 FOLLOW US ON FACEBOOK: https://www.facebook.com/profile.php?id=100077547189991\n\n#food #streetfood #cooking #delicious #foodie #satisfying #compilation #recipe #asmr #viral #foodlovers"""
-                    comp_tags = ["food", "street food", "cooking", "delicious", "foodie", "satisfying", "compilation", "recipe", "asmr", "viral"]
-                else:
-                    comp_description = f"""{dynamic_summary}\n\n🏆 WHICH CLIP MADE YOU LAUGH THE HARDEST? Drop the number in the comments below! 👇\n\n🔔 NEVER MISS A LAUGH: Subscribe & tap the bell for daily viral compilations: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 FOLLOW OUR FACEBOOK PAGE for daily viral videos & memes: https://www.facebook.com/profile.php?id=100077547189991\n\n#funny #epicfails #meme #compilation #reaction #comedy #viral #laugh #trynottolaugh #bestof #humor #trending"""
-                    comp_tags = ["funny", "epic fails", "meme", "compilation", "reaction", "comedy", "viral", "laugh", "try not to laugh", "best of", "relatable fails", "humor"]
+                # --- Dedicated YouTube Compilation Description ---
+                yt_comp_description = f"""{yt_summary}\n\n🏆 WHICH CLIP WAS YOUR FAVORITE? Drop your vote in the comments below! 👇\n\n🔔 NEVER MISS A LAUGH: Subscribe & tap the bell for daily compilations: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 FOLLOW OUR FACEBOOK PAGE: https://www.facebook.com/profile.php?id=100077547189991\n\n#funny #epicfails #meme #compilation #reaction #comedy #viral #laugh #trynottolaugh #bestof #trending"""
+                yt_comp_tags = ["funny", "epic fails", "meme", "compilation", "reaction", "comedy", "viral", "laugh", "try not to laugh", "best of", "relatable fails"]
+
+                # --- Dedicated Facebook Compilation Description ---
+                fb_comp_description = f"""{fb_summary}\n\n💬 Which clip made you laugh the hardest? Tag a friend who needs to watch this! 😂👇\n\n📱 Follow Daily Dose of Fun for daily viral moments: https://www.facebook.com/profile.php?id=100077547189991\n🔔 YouTube: https://www.youtube.com/@DailyDosOfFun-q2t\n\n#reels #funnyreels #epicfails #viralpost #comedy"""
 
     # 5. Upload the final Compilation Video
     if merged_path:
         comp_thumb_path = os.path.join("data", "output", "comp_thumb.jpg")
         generate_thumbnail(merged_path, comp_thumb_path)
         
-        comp_yt_res = upload_to_youtube(merged_path, comp_title, comp_description, comp_tags, thumbnail_path=comp_thumb_path)
-        comp_fb_res = upload_to_facebook(merged_path, comp_title, comp_description, is_compilation=True, thumbnail_path=comp_thumb_path)
-        uploaded_comp_title = comp_title
+        comp_yt_res = upload_to_youtube(merged_path, yt_comp_title, yt_comp_description, yt_comp_tags, thumbnail_path=comp_thumb_path)
+        comp_fb_res = upload_to_facebook(merged_path, fb_comp_title, fb_comp_description, is_compilation=True, thumbnail_path=comp_thumb_path)
+        uploaded_comp_title = f"YT: '{yt_comp_title}'\n  • FB: '{fb_comp_title}'"
         
         log_video_analytics(
             video_id=f"comp_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            title=comp_title,
+            title=yt_comp_title,
             category=long_category,
             hook_style="Compilation",
             yt_id=str(comp_yt_res) if comp_yt_res and str(comp_yt_res) != "True" else None,
             fb_id=str(comp_fb_res) if comp_fb_res and str(comp_fb_res) != "True" else None
         )
             
-    # 6. Send Telegram Executive Summary Report if configured
+    # 6. Send Decoupled Multi-Platform Telegram Report
     try:
         upload_summary = {
             "short_title": uploaded_short_title or "Not Uploaded (Pool Exhausted)",
             "comp_title": uploaded_comp_title or "Not Uploaded (Single Short Mode)"
         }
-        send_telegram_report(primary_mood, short_profile, upload_summary=upload_summary)
+        send_telegram_report(primary_mood, yt_short_profile, fb_profile=fb_short_profile, upload_summary=upload_summary)
     except Exception as e:
         print(f"Telegram report notification notice: {e}")
 
