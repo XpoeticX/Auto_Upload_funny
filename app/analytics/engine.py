@@ -408,3 +408,93 @@ def get_active_profile(category: str) -> dict:
     }
     
     return baselines.get(base_theme, baselines["funny"])
+
+def send_telegram_report(category: str, adaptive_profile: dict, upload_summary: dict = None) -> bool:
+    """
+    Sends a formatted executive summary of the RLAF analytics, learning drivers,
+    and dynamic pipeline adjustments to a Telegram Channel or Group.
+    """
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    
+    if not bot_token or not chat_id:
+        print("Telegram notification skipped: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not configured.")
+        return False
+        
+    eval_data = adaptive_profile.get("agent_evaluation", {})
+    reward_trend = eval_data.get("reward_trend", "ACTIVE")
+    mode = eval_data.get("strategy_mode", "EXPLOITATION")
+    
+    rewards_list = eval_data.get("reward_drivers", [])
+    rewards = "\n".join([f"  • {r}" for r in rewards_list[:3]]) if rewards_list else "  • Scaling high-retention reach"
+    
+    penalties_list = eval_data.get("penalty_root_causes", [])
+    penalties = "\n".join([f"  • {p}" for p in penalties_list[:3]]) if penalties_list else "  • Zero major drop-off penalties"
+    
+    p1 = adaptive_profile.get("phase_1_discovery_directives", {})
+    queries = "\n".join([f"  🔍 <i>{q}</i>" for q in p1.get("primary_search_queries", [])[:3]]) or "  🔍 Baseline queries"
+    
+    p4 = adaptive_profile.get("phase_4_vision_gate_directives", {})
+    hooks = "\n".join([f"  🎯 {h}" for h in p4.get("mandatory_visual_hooks", [])[:2]]) or "  🎯 Immediate visual motion"
+    rejects = "\n".join([f"  ⛔ {r}" for r in p4.get("instant_reject_triggers", [])[:2]]) or "  ⛔ Slow build-up"
+    
+    p6 = adaptive_profile.get("phase_6_copywriting_directives", {})
+    title_formulas = "\n".join([f"  ✍️ <i>{t}</i>" for t in p6.get("title_formulas", [])[:2]]) or "  ✍️ Curiosity loop templates"
+    cta = p6.get("comment_cta", "Which moment was your favorite? Vote below! 👇")
+    
+    short_title = upload_summary.get("short_title", "Published") if upload_summary else "Published"
+    comp_title = upload_summary.get("comp_title", "Published") if upload_summary else "Published"
+    
+    message = f"""
+🤖 <b>[RLAF AGENT REPORT] @DailyDosOfFun</b>
+━━━━━━━━━━━━━━━━━━━━
+📂 <b>Category:</b> <code>{category.upper()}</code>
+⚡ <b>Strategy Mode:</b> <b>{mode}</b>
+📈 <b>Reward Trend:</b> <b>{reward_trend}</b>
+
+🏆 <b>Top Reward Drivers (What's Winning):</b>
+{rewards}
+
+⚠️ <b>Penalty Root Causes (What Got Cut):</b>
+{penalties}
+
+━━━━━━━━━━━━━━━━━━━━
+🔄 <b>AUTONOMOUS CHANGES APPLIED:</b>
+
+🔍 <b>New Discovery Search Queries:</b>
+{queries}
+
+🎯 <b>Mandatory Visual Hooks (Vision Gate):</b>
+{hooks}
+
+⛔ <b>Instant Reject Triggers:</b>
+{rejects}
+
+✍️ <b>Dynamic Title Formulas:</b>
+{title_formulas}
+
+💬 <b>Optimized Comment CTA:</b>
+  <i>"{cta}"</i>
+
+━━━━━━━━━━━━━━━━━━━━
+🚀 <b>LATEST UPLOADS POSTED:</b>
+🎬 <b>Short:</b> {short_title}
+📼 <b>Compilation:</b> {comp_title}
+"""
+    try:
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": message.strip(),
+            "parse_mode": "HTML"
+        }
+        res = requests.post(url, json=payload, timeout=10)
+        if res.status_code == 200:
+            print("Telegram Executive Report delivered successfully!")
+            return True
+        else:
+            print(f"Telegram Delivery failed ({res.status_code}): {res.text}")
+            return False
+    except Exception as e:
+        print(f"Telegram notification error: {e}")
+        return False

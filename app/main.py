@@ -12,7 +12,7 @@ from app.video.editor import normalize_video, merge_compilation, create_meme_tra
 from app.video.thumbnail import generate_thumbnail
 from app.upload.youtube import upload_to_youtube
 from app.upload.facebook import upload_to_facebook
-from app.analytics.engine import fetch_and_update_metrics, run_meta_optimizer, get_active_profile
+from app.analytics.engine import fetch_and_update_metrics, run_meta_optimizer, get_active_profile, send_telegram_report
 
 def cleanup():
     print("Cleaning up temp folders...")
@@ -88,6 +88,8 @@ def main():
     print(f"\n--- Processing Individual Short ({short_category}) ---")
     short_success = False
     short_clip_id = None
+    uploaded_short_title = None
+    uploaded_comp_title = None
     
     for target_clip in short_pool:
         # HARD RULE: Verify link/ID in database before downloading
@@ -169,6 +171,7 @@ def main():
             
             mark_video_used(target_clip['id'], target_clip['title'])
             short_clip_id = target_clip['id']
+            uploaded_short_title = dynamic_title
             short_success = True
             break  # Stop after 1 successful short
             
@@ -317,6 +320,7 @@ def main():
         
         comp_yt_res = upload_to_youtube(merged_path, comp_title, comp_description, comp_tags, thumbnail_path=comp_thumb_path)
         comp_fb_res = upload_to_facebook(merged_path, comp_title, comp_description, is_compilation=True, thumbnail_path=comp_thumb_path)
+        uploaded_comp_title = comp_title
         
         log_video_analytics(
             video_id=f"comp_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}",
@@ -327,6 +331,16 @@ def main():
             fb_id=str(comp_fb_res) if comp_fb_res and str(comp_fb_res) != "True" else None
         )
             
+    # 6. Send Telegram Executive Summary Report if configured
+    try:
+        upload_summary = {
+            "short_title": uploaded_short_title or "Not Uploaded (Pool Exhausted)",
+            "comp_title": uploaded_comp_title or "Not Uploaded (Single Short Mode)"
+        }
+        send_telegram_report(primary_mood, short_profile, upload_summary=upload_summary)
+    except Exception as e:
+        print(f"Telegram report notification notice: {e}")
+
     # Clean up large files
     cleanup()
     print("Pipeline finished.")

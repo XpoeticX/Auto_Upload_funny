@@ -44,5 +44,7 @@ jobs:
         FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
         YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
         python -m app.main
