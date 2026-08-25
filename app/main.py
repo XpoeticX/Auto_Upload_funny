@@ -76,22 +76,17 @@ def main():
         
     print(f"Total Short Pool size built: {len(short_pool)} items (YouTube -> TikTok -> Imgur)")
         
-    # 2. Discover clips for Compilation
-    print(f"\n--- Phase 2: Scraping for Compilation ({long_category}) ---")
-    long_compilation = fetch_long_compilation(query_type=primary_mood)
+    # 2. Discover clips for the 3-Clip Compilation (RLAF Dynamic Discovery)
+    print(f"\n--- Phase 2: Scraping for 3-Clip Compilation ({long_category}) ---")
+    custom_long_queries = list(dict.fromkeys(
+        yt_long_profile.get("phase_1_discovery_directives", {}).get("primary_search_queries", []) +
+        fb_long_profile.get("phase_1_discovery_directives", {}).get("primary_search_queries", [])
+    ))
     comp_pool = []
-    
-    if not long_compilation:
-        print("Falling back to downloading individual clips for merging...")
-        custom_long_queries = list(dict.fromkeys(
-            yt_long_profile.get("phase_1_discovery_directives", {}).get("primary_search_queries", []) +
-            fb_long_profile.get("phase_1_discovery_directives", {}).get("primary_search_queries", [])
-        ))
-        comp_pool.extend(fetch_youtube(35, query_type=primary_mood, custom_queries=custom_long_queries))
-        comp_pool.extend(fetch_tiktok(35, query_type=primary_mood))
-        comp_pool.extend(fetch_imgur(35, query_type=primary_mood))
-            
-        print(f"Total Compilation Pool size built: {len(comp_pool)} items (YouTube -> TikTok -> Imgur)")
+    comp_pool.extend(fetch_youtube(20, query_type=primary_mood, custom_queries=custom_long_queries))
+    comp_pool.extend(fetch_imgur(20, query_type=primary_mood))
+    comp_pool.extend(fetch_tiktok(10, query_type=primary_mood))
+    print(f"Total Compilation Pool size built: {len(comp_pool)} items (YouTube -> Imgur -> TikTok)")
             
     # 3. Process the Individual Short (Stop after 1 success)
     print(f"\n--- Processing Individual Short ({short_category}) ---")
@@ -183,58 +178,19 @@ def main():
     if not short_success:
         print("Warning: Failed to upload any Short after exhausting the pool.")
         
-    # 4. Process Compilation
-    print("\n--- Processing Compilation ---")
-    
+    # 4. Process 3-Clip Compilation
+    print("\n--- Processing 3-Clip Compilation ---")
     merged_path = None
-    comp_title = "Incredible Compilation Video! 😂"
-    comp_description = ""
+    processed_compilation_shorts = []
+    compilation_titles = []
+    total_duration = 0.0
+    TARGET_CLIPS = 3  # Fast, viral, and high-retention: 3 punchy clips
+    CLIP_MAX_DURATION = 16.0  # 12-16s per clip
     
-    if long_compilation:
-        if is_video_used(long_compilation['id']):
-            print(f"Skipping duplicate Long Compilation: {long_compilation['id']} (Already in DB)")
-            long_compilation = None
-        else:
-            print(f"\nEvaluating Single Long Compilation: {long_compilation['title']}")
-            raw_video_path = os.path.join("data", "temp", f"raw_long_comp_{long_compilation['id']}.mp4")
-            downloaded_path = download_video(long_compilation["url"], raw_video_path)
-            
-            if downloaded_path:
-                comp_title = f"{long_compilation['title']} (Best Moments)"
-                normalized_path = os.path.join("data", "output", f"norm_long_comp_{long_compilation['id']}.mp4")
-                if normalize_video(downloaded_path, normalized_path, is_short=False, watermark_text=watermark_handle):
-                    merged_path = normalized_path
-                    try:
-                        mark_video_used(long_compilation['id'], long_compilation['title'])
-                    except Exception:
-                        pass
-                else:
-                    print("Failed to normalize long compilation.")
-    
-    # Fallback to merging individual clips if long_compilation failed or wasn't found
-    if not merged_path:
-        if not comp_pool:
-            print("\n--- Long Compilation unavailable/blocked. Gathering individual clips to build compilation ---")
-            if is_pm_run:
-                comp_pool.extend(fetch_tiktok(35, query_type=primary_mood))
-                comp_pool.extend(fetch_imgur(35, query_type=primary_mood))
-                comp_pool.extend(fetch_youtube(35, query_type=primary_mood))
-            else:
-                comp_pool.extend(fetch_tiktok(35, query_type="muslim couple hijab romance"))
-                comp_pool.extend(fetch_imgur(35, query_type=primary_mood))
-                comp_pool.extend(fetch_youtube(35, query_type="ytsearch35:muslim couple goals hijab romance shorts"))
-            print(f"Total Compilation Pool size built: {len(comp_pool)} items (TikTok -> Imgur -> YouTube)")
-            
-        processed_compilation_shorts = []
-        compilation_titles = []
-        total_duration = 0.0
-        TARGET_CLIPS = 3  # Fast, viral, and high-retention: 3 punchy clips
-        CLIP_MAX_DURATION = 16.0  # 12-16s per clip
-        
-        for target_clip in comp_pool:
-            if len(processed_compilation_shorts) >= TARGET_CLIPS:
-                print(f"Successfully gathered {TARGET_CLIPS} viral clips for compilation! (Total: {total_duration:.1f}s)")
-                break
+    for target_clip in comp_pool:
+        if len(processed_compilation_shorts) >= TARGET_CLIPS:
+            print(f"Successfully gathered {TARGET_CLIPS} viral clips for compilation! (Total: {total_duration:.1f}s)")
+            break
                 
             if 'short_clip_id' in locals() and short_clip_id and target_clip['id'] == short_clip_id:
                 print(f"Skipping {target_clip['id']} because it was already used for the Individual Short.")

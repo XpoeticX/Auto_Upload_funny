@@ -27,9 +27,10 @@ def fetch_tiktok(limit: int = 5, query_type: str = "funny") -> List[Dict]:
     }
     
     valid_clips = []
+    consecutive_failures = 0
     
     for username in user_list:
-        if len(valid_clips) >= limit:
+        if len(valid_clips) >= limit or consecutive_failures >= 2:
             break
             
         url = f"https://www.tiktok.com/@{username}"
@@ -59,8 +60,13 @@ def fetch_tiktok(limit: int = 5, query_type: str = "funny") -> List[Dict]:
                                 "url": video_url,
                                 "source": f"TikTok (@{username})"
                             })
+                    consecutive_failures = 0
         except Exception as e:
-            print(f"Could not scrape @{username} ({e}). Trying next creator...")
+            consecutive_failures += 1
+            print(f"Could not scrape @{username} ({e}).")
+            if consecutive_failures >= 2:
+                print("TikTok anti-bot active on IP. Fast failing over to YouTube/Imgur...")
+                break
             continue
             
     print(f"Successfully scraped {len(valid_clips)} TikTok clips.")
