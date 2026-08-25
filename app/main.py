@@ -31,17 +31,17 @@ def main():
     init_db()
     
     current_hour = datetime.datetime.now(datetime.timezone.utc).hour
-    is_pm_run = (10 <= current_hour <= 18) # 11:40 UTC is PM run (5:40 PM BST), 22:40 UTC is AM run (4:40 AM BST)
+    is_pm_run = (12 <= current_hour <= 20) # 14:00 UTC is PM run (8:00 PM BST), 01:00 UTC is AM run (7:00 AM BST)
     
     env_category = os.environ.get("CONTENT_CATEGORY") or os.environ.get("PRIMARY_MOOD")
     if env_category:
         primary_mood = env_category.lower().strip()
         print(f"Content Category Override: {primary_mood.upper()}")
     elif is_pm_run:
-        print("Schedule: PM Run -> ALL Content is FUNNY (Epic Fails)")
+        print("Schedule: PM Run (08:00 PM BST) -> ALL Content is FUNNY (Epic Fails)")
         primary_mood = "funny"
     else:
-        print("Schedule: AM Run -> ALL Content is ROMANTIC")
+        print("Schedule: AM Run (07:00 AM BST) -> ALL Content is ROMANTIC")
         primary_mood = "romantic"
         
     short_category = f"{primary_mood}_short"
