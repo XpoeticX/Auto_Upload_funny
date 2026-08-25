@@ -136,22 +136,26 @@ def main():
             c_gate = short_profile.get("phase_6_copywriting_directives", {})
             cta_question = c_gate.get("comment_cta") or short_profile.get("high_engagement_cta")
             hashtags = " ".join(c_gate.get("hashtag_stack", []))
+            custom_intro = c_gate.get("description_intro")
+            custom_tags = c_gate.get("tag_keywords")
             
             if primary_mood == "romantic":
+                intro = custom_intro or f"In this quick Short, we react to: {base_title}! ❤️"
                 cta = cta_question or "What's the sweetest couple moment you've ever witnessed? Drop a comment below! 👇"
                 tag_str = hashtags or "#romantic #couplegoals #shorts #reaction #cute #love #wholesome #halallove #viral"
-                description = f"""In this quick Short, we react to: {base_title}! ❤️\n\n💬 QUESTION: {cta}\n\n🔔 SUBSCRIBE to Daily Dose of Fun for daily wholesome & cute moments: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 Follow our Official Facebook Page: https://www.facebook.com/profile.php?id=100077547189991\n\nVia {target_clip.get('source', 'Unknown')}\n{tag_str}"""
-                tags = ["romantic", "couple goals", "reaction", "shorts", "cute", "love", "wholesome relationships", "viral"]
+                tags = custom_tags or ["romantic", "couple goals", "reaction", "shorts", "cute", "love", "wholesome relationships", "viral"]
             elif primary_mood == "food":
+                intro = custom_intro or f"In this quick Short, we react to: {base_title}! 🍔🍕"
                 cta = cta_question or "Would you eat this or pass? Rate it 1 to 10 in the comments below! 👇"
                 tag_str = hashtags or "#food #streetfood #satisfying #delicious #recipe #foodie #shorts #viral #asmrcooking"
-                description = f"""In this quick Short, we react to: {base_title}! 🍔🍕\n\n💬 QUESTION: {cta}\n\n🔔 SUBSCRIBE to Daily Dose of Fun for mouthwatering daily food & satisfying clips: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 Follow our Official Facebook Page: https://www.facebook.com/profile.php?id=100077547189991\n\nVia {target_clip.get('source', 'Unknown')}\n{tag_str}"""
-                tags = ["food", "street food", "satisfying", "delicious", "recipe", "foodie", "cooking", "shorts", "viral", "asmr"]
+                tags = custom_tags or ["food", "street food", "satisfying", "delicious", "recipe", "foodie", "cooking", "shorts", "viral", "asmr"]
             else:
+                intro = custom_intro or f"In this quick Short, we react to: {base_title}! 🤣"
                 cta = cta_question or "How hard did you laugh? Rate 1 to 10 in the comments! 👇"
                 tag_str = hashtags or "#funny #epicfails #comedy #shorts #reaction #hilarious #meme #trynottolaugh #viral"
-                description = f"""In this quick Short, we react to: {base_title}! 🤣\n\n💬 QUESTION: {cta}\n\n🔔 SUBSCRIBE to Daily Dose of Fun for daily viral laughs & hilarious moments: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 Follow our Official Facebook Page: https://www.facebook.com/profile.php?id=100077547189991\n\nVia {target_clip.get('source', 'Unknown')}\n{tag_str}"""
-                tags = ["funny", "epic fails", "reaction", "shorts", "comedy", "hilarious", "meme", "viral", "try not to laugh"]
+                tags = custom_tags or ["funny", "epic fails", "reaction", "shorts", "comedy", "hilarious", "meme", "viral", "try not to laugh"]
+                
+            description = f"""{intro}\n\n💬 QUESTION: {cta}\n\n🔔 SUBSCRIBE to Daily Dose of Fun for daily viral moments: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 Follow our Official Facebook Page: https://www.facebook.com/profile.php?id=100077547189991\n\nVia {target_clip.get('source', 'Unknown')}\n{tag_str}"""
                 
             thumb_path = os.path.join("data", "output", f"thumb_{target_clip['id']}.jpg")
             generate_thumbnail(rendered_path, thumb_path)

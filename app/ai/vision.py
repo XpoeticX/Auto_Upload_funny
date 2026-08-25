@@ -44,17 +44,28 @@ def analyze_video_and_generate_script(video_path: str, is_short: bool = False, p
     dynamic_directives = ""
     if profile:
         # Check for RLAF format or legacy format
+        eval_meta = profile.get("agent_evaluation", {})
         v_gate = profile.get("phase_4_vision_gate_directives", {})
         c_gate = profile.get("phase_6_copywriting_directives", {})
         
+        n_rules = eval_meta.get("emergent_n_rules", [])
+        custom_rules = v_gate.get("custom_evaluation_rules", [])
         winning_hooks = v_gate.get("mandatory_visual_hooks") or profile.get("winning_visual_hooks", [])
         banned_topics = v_gate.get("instant_reject_triggers") or profile.get("underperforming_elements_to_ban", [])
         title_archetypes = c_gate.get("title_formulas") or profile.get("high_converting_title_templates", [])
         
+        n_rules_str = "\n        ".join([f"- {r}" for r in n_rules]) if n_rules else "- Maximize 3-second viewer retention"
+        custom_rules_str = "\n        ".join([f"- {c}" for c in custom_rules]) if custom_rules else "- Discard low visual contrast clips"
+        
         dynamic_directives = f"""
-        REINFORCEMENT LEARNING DIRECTIVES (Optimized to Maximize Algorithm Rewards):
+        AUTONOMOUS AGENT REINFORCEMENT LEARNING DIRECTIVES & N-RULES:
+        {n_rules_str}
+        
+        VISION GATE CRITERIA:
         - Mandatory Visual Hooks to Prioritize: {', '.join(winning_hooks) if isinstance(winning_hooks, list) else winning_hooks}
         - Instant Reject Triggers (Penalty Traps): {', '.join(banned_topics) if isinstance(banned_topics, list) else banned_topics}
+        - Custom Quality Rules:
+        {custom_rules_str}
         - High-Performing Title Formulas: {', '.join(title_archetypes) if isinstance(title_archetypes, list) else title_archetypes}
         """
     

@@ -190,15 +190,15 @@ def run_meta_optimizer(category: str, epsilon: float = 0.20) -> dict:
     """
     
     prompt = f"""
-    [SYSTEM: AUTONOMOUS REINFORCEMENT LEARNING AGENT (MAX_REWARD_MODE)]
+    [SYSTEM: AUTONOMOUS REINFORCEMENT LEARNING META-AGENT (UNRESTRICTED MAX_REWARD_MODE)]
 
-    You are an autonomous AI Agent whose sole objective is to MAXIMIZE CUMULATIVE REWARD POINTS across YouTube Shorts and Facebook Reels.
+    You are an autonomous AI Agent with TOTAL CREATIVE & STRATEGIC AUTHORITY over this automated YouTube Shorts and Facebook Reels channel.
+    Your objective: MAXIMIZE CUMULATIVE REWARD POINTS ($R_i$) by autonomously inventing, modifying, and evolving ANY AND ALL pipeline rules.
 
     REWARD POLICY:
     - High Views + High Shares + High Comments = POSITIVE REWARD (+20 to +100 Points).
     - Stagnant / Flatlining / Low Retention (>48h) = HEAVY PENALTY (-30 to -60 Points).
-    - Videos under 48h are in seed testing phase.
-    - Goal: Maximize long-term point yield by dynamically adapting ALL creative parameters.
+    - Goal: Autonomously optimize content discovery, visual filtering, video pacing, title copywriting, and description templates.
 
     CURRENT AGENT STATE & HISTORICAL PERFORMANCE LEDGER:
     {{
@@ -214,15 +214,27 @@ def run_meta_optimizer(category: str, epsilon: float = 0.20) -> dict:
     - Penalty Tags: [HOOK_PACING_LAG, WEAK_CURIOSITY_GAP, NICHE_SATURATION, FLAT_CTA, LOW_CONTRAST_SETUP, AUDIO_MISMATCH]
     - Reward Tags: [IMMEDIATE_PHYSICAL_TWIST, STRONG_CURIOSITY_LOOP, HIGH_DEBATE_CTA, EMOTIONAL_RELATABILITY, FAST_PACED_EDIT, SENSORY_HOOK]
 
+    YOU HAVE FULL AUTHORITY TO:
+    1. Invent new N-Rules: Formulate arbitrary new operational rules based on algorithm behavior.
+    2. Override / Pivot Theme: Select the most viral subtheme or niche.
+    3. Modify Vision Gate: Decide what visual elements to ban or mandate.
+    4. Rewrite Copywriting: Create custom title templates, description formats, comment CTAs, and hashtags.
+
     OUTPUT FORMAT (Strictly valid JSON only, no markdown wrappers):
     {{
       "agent_evaluation": {{
         "reward_trend": "GROWING",
         "strategy_mode": "{'EXPLORATION' if is_exploration else 'EXPLOITATION'}",
-        "penalty_root_causes": ["HOOK_PACING_LAG: reason description"],
-        "reward_drivers": ["IMMEDIATE_PHYSICAL_TWIST: reason description"]
+        "penalty_root_causes": ["HOOK_PACING_LAG: description"],
+        "reward_drivers": ["IMMEDIATE_PHYSICAL_TWIST: description"],
+        "emergent_n_rules": [
+          "RULE_1: Instant high-contrast visual twist within first 1.2s",
+          "RULE_2: Curiosity-inducing question format for comment section debate",
+          "RULE_3: Ban clips with static dialogue"
+        ]
       }},
       "phase_1_discovery_directives": {{
+        "pivoted_content_theme": "{category.split('_')[0]}",
         "primary_search_queries": [
           "query_1_to_maximize_reach",
           "query_2_to_maximize_reach"
@@ -230,12 +242,15 @@ def run_meta_optimizer(category: str, epsilon: float = 0.20) -> dict:
         "target_subcategories": ["specific_subniche_with_highest_points"]
       }},
       "phase_4_vision_gate_directives": {{
-        "optimal_clip_duration": "12-18 seconds",
+        "optimal_clip_duration": "10-16 seconds",
         "mandatory_visual_hooks": [
-          "Immediate physical motion or emotional disruption in 0.0s-1.2s"
+          "Immediate physical motion, stunt, or emotional disruption in 0.0s-1.2s"
         ],
         "instant_reject_triggers": [
-          "Static talking heads or slow build-up over 2.5s"
+          "Static talking heads or slow build-up over 2.0s"
+        ],
+        "custom_evaluation_rules": [
+          "Must have clear visual resolution within 15 seconds"
         ]
       }},
       "phase_6_copywriting_directives": {{
@@ -243,8 +258,10 @@ def run_meta_optimizer(category: str, epsilon: float = 0.20) -> dict:
           "Bro thought he had it under control 💀 #shorts #viral",
           "Wait till you see the ending 😂 #viral"
         ],
+        "description_intro": "Watch what happens when things go completely off script! 🤣",
         "comment_cta": "Which clip made you laugh the hardest? Vote 1, 2, or 3 below! 👇",
-        "hashtag_stack": ["#shorts", "#viral", "#funny", "#trending"]
+        "hashtag_stack": ["#shorts", "#viral", "#funny", "#trending"],
+        "tag_keywords": ["funny", "shorts", "viral", "reaction", "comedy"]
       }}
     }}
     """
@@ -434,6 +451,9 @@ def send_telegram_report(category: str, adaptive_profile: dict, upload_summary: 
     penalties_list = eval_data.get("penalty_root_causes", [])
     penalties = "\n".join([f"  • {p}" for p in penalties_list[:3]]) if penalties_list else "  • Zero major drop-off penalties"
     
+    n_rules_list = eval_data.get("emergent_n_rules", [])
+    n_rules = "\n".join([f"  📜 <i>{rule}</i>" for rule in n_rules_list[:3]]) if n_rules_list else "  📜 Maximize early audience retention & share velocity"
+    
     p1 = adaptive_profile.get("phase_1_discovery_directives", {})
     queries = "\n".join([f"  🔍 <i>{q}</i>" for q in p1.get("primary_search_queries", [])[:3]]) or "  🔍 Baseline queries"
     
@@ -462,7 +482,10 @@ def send_telegram_report(category: str, adaptive_profile: dict, upload_summary: 
 {penalties}
 
 ━━━━━━━━━━━━━━━━━━━━
-🔄 <b>AUTONOMOUS CHANGES APPLIED:</b>
+🔄 <b>AUTONOMOUS CHANGES & N-RULES:</b>
+
+📜 <b>Emergent Agent Rules (Learned from Data):</b>
+{n_rules}
 
 🔍 <b>New Discovery Search Queries:</b>
 {queries}
