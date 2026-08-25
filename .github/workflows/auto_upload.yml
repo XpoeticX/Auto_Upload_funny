@@ -2,7 +2,7 @@ name: Funny Video Auto Upload Pipeline
 
 on:
   schedule:
-    - cron: '40 0,13 * * *' # Runs at 6:40 AM and 7:40 PM (UTC+6)
+    - cron: '40 11,22 * * *' # Runs 2 hours earlier: 4:40 AM and 5:40 PM (BST / UTC+6)
   workflow_dispatch: # Allows manual trigger
 
 jobs:

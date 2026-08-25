@@ -31,7 +31,7 @@ def main():
     init_db()
     
     current_hour = datetime.datetime.now(datetime.timezone.utc).hour
-    is_pm_run = (current_hour >= 12) # 13:40 UTC is PM run, 00:40 UTC is AM run
+    is_pm_run = (10 <= current_hour <= 18) # 11:40 UTC is PM run (5:40 PM BST), 22:40 UTC is AM run (4:40 AM BST)
     
     env_category = os.environ.get("CONTENT_CATEGORY") or os.environ.get("PRIMARY_MOOD")
     if env_category:
