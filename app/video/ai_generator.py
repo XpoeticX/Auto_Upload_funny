@@ -69,22 +69,59 @@ async def synthesize_voiceover(text: str, output_path: str, voice: str = "en-US-
     except Exception:
         return 8.0
 
+PALETTES = {
+    "classic": {
+        "bg": (15, 23, 42),
+        "card_a": (30, 27, 75), "border_a": (99, 102, 241), "badge_a": (49, 46, 129),
+        "card_b": (136, 19, 55), "border_b": (244, 63, 94), "badge_b": (159, 18, 57),
+        "accent": (251, 191, 36)
+    },
+    "cyberpunk": {
+        "bg": (10, 10, 25),
+        "card_a": (15, 76, 129), "border_a": (6, 182, 212), "badge_a": (8, 145, 178),
+        "card_b": (131, 24, 67), "border_b": (236, 72, 153), "badge_b": (190, 24, 93),
+        "accent": (250, 204, 21)
+    },
+    "toxic": {
+        "bg": (12, 20, 15),
+        "card_a": (20, 83, 45), "border_a": (34, 197, 94), "badge_a": (22, 101, 52),
+        "card_b": (88, 28, 135), "border_b": (168, 85, 247), "badge_b": (126, 34, 206),
+        "accent": (234, 179, 8)
+    },
+    "inferno": {
+        "bg": (20, 10, 10),
+        "card_a": (154, 52, 18), "border_a": (249, 115, 22), "badge_a": (194, 65, 12),
+        "card_b": (30, 58, 138), "border_b": (59, 130, 246), "badge_b": (29, 78, 216),
+        "accent": (253, 224, 71)
+    },
+    "royal": {
+        "bg": (15, 15, 20),
+        "card_a": (120, 53, 15), "border_a": (234, 179, 8), "badge_a": (161, 98, 7),
+        "card_b": (15, 23, 42), "border_b": (148, 163, 184), "badge_b": (30, 41, 59),
+        "accent": (245, 158, 11)
+    }
+}
+
 def render_dilemma_card(dilemma: dict, state: str = "question", countdown: int = 0) -> str:
     """
     Renders 1080x1920 high-contrast split-screen graphic card:
-    - Top: Option A (Deep Indigo/Blue)
-    - Bottom: Option B (Deep Crimson/Red)
+    - Dynamic color palettes (classic, cyberpunk, toxic, inferno, royal)
+    - Top: Option A
+    - Bottom: Option B
     - Center: 'VS' badge + Countdown or Reveal Percentage
     """
-    img = Image.new("RGB", (1080, 1920), color=(15, 23, 42)) # Slate 900 background
+    pal_key = dilemma.get("palette", "classic").lower()
+    palette = PALETTES.get(pal_key, PALETTES["classic"])
+
+    img = Image.new("RGB", (1080, 1920), color=palette["bg"])
     draw = ImageDraw.Draw(img)
 
     # 1. Header Banner
-    draw.rounded_rectangle([60, 60, 1020, 160], radius=30, fill=(30, 41, 59), outline=(245, 158, 11), width=4)
+    draw.rounded_rectangle([60, 60, 1020, 160], radius=30, fill=(30, 41, 59), outline=palette["accent"], width=4)
     header_font = get_font(52)
     header_text = "⚡ WOULD YOU RATHER ⚡"
     h_bbox = draw.textbbox((0, 0), header_text, font=header_font)
-    draw.text(((1080 - (h_bbox[2] - h_bbox[0])) // 2, 78), header_text, font=header_font, fill=(251, 191, 36))
+    draw.text(((1080 - (h_bbox[2] - h_bbox[0])) // 2, 78), header_text, font=header_font, fill=palette["accent"])
 
     topic_text = dilemma.get("topic", "CHOOSE YOUR SIDE").upper()
     topic_font = get_font(32)
@@ -93,10 +130,10 @@ def render_dilemma_card(dilemma: dict, state: str = "question", countdown: int =
 
     # 2. Option A Card (Top Half: Y 230 -> 930)
     opt_a = dilemma.get("option_a", {})
-    draw.rounded_rectangle([50, 230, 1030, 930], radius=40, fill=(30, 27, 75), outline=(99, 102, 241), width=5)
+    draw.rounded_rectangle([50, 230, 1030, 930], radius=40, fill=palette["card_a"], outline=palette["border_a"], width=5)
     
     # Emoji / Icon badge
-    draw.rounded_rectangle([480, 260, 600, 360], radius=20, fill=(49, 46, 129))
+    draw.rounded_rectangle([480, 260, 600, 360], radius=20, fill=palette["badge_a"])
     emoji_font = get_font(56)
     draw.text((515, 275), opt_a.get("emoji", "🔥"), font=emoji_font, fill=(255, 255, 255))
     
@@ -111,10 +148,10 @@ def render_dilemma_card(dilemma: dict, state: str = "question", countdown: int =
 
     # 3. Option B Card (Bottom Half: Y 990 -> 1690)
     opt_b = dilemma.get("option_b", {})
-    draw.rounded_rectangle([50, 990, 1030, 1690], radius=40, fill=(136, 19, 55), outline=(244, 63, 94), width=5)
+    draw.rounded_rectangle([50, 990, 1030, 1690], radius=40, fill=palette["card_b"], outline=palette["border_b"], width=5)
     
     # Emoji / Icon badge
-    draw.rounded_rectangle([480, 1020, 600, 1120], radius=20, fill=(159, 18, 57))
+    draw.rounded_rectangle([480, 1020, 600, 1120], radius=20, fill=palette["badge_b"])
     draw.text((515, 1035), opt_b.get("emoji", "❄️"), font=emoji_font, fill=(255, 255, 255))
     
     # Option B Text

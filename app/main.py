@@ -14,7 +14,7 @@ from app.video.ai_generator import create_dilemma_video, create_dilemma_compilat
 from app.video.thumbnail import generate_thumbnail
 from app.upload.youtube import upload_to_youtube
 from app.upload.facebook import upload_to_facebook
-from app.analytics.engine import fetch_and_update_metrics, run_meta_optimizer, get_active_profile, send_telegram_report
+from app.analytics.engine import fetch_and_update_metrics, run_meta_optimizer, get_active_profile, send_telegram_report, get_rlaf_ai_feedback
 
 def cleanup():
     print("Cleaning up temp folders...")
@@ -65,9 +65,10 @@ def main():
         yt_long_profile = get_active_profile(long_category, platform="youtube")
         fb_long_profile = get_active_profile(long_category, platform="facebook")
         
-    # --- PHASE 1: GENERATE VIRAL AI DILEMMAS ---
+    # --- PHASE 1: GENERATE VIRAL AI DILEMMAS WITH RLAF ADAPTATION ---
     print(f"\n--- Phase 1: Generating 100% AI Dilemmas ({primary_mood}) ---")
-    dilemmas = generate_ai_dilemmas(theme=primary_mood, count=4)
+    rlaf_feedback = get_rlaf_ai_feedback()
+    dilemmas = generate_ai_dilemmas(theme=primary_mood, count=4, rlaf_feedback=rlaf_feedback)
     short_dilemma = dilemmas[0]
     comp_dilemmas = dilemmas[1:4]
     

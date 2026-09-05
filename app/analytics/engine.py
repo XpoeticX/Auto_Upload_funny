@@ -254,6 +254,56 @@ def fetch_and_update_metrics() -> None:
 
     print("Decoupled platform performance ledgers updated successfully.")
 
+def get_rlaf_ai_feedback() -> dict:
+    """
+    Extracts real-time reward feedback from Supabase to steer AI Dilemma Generation.
+    - Analyzes which topics and hooks earned the highest views and engagement.
+    - Balances Exploitation (scaling winning topics) vs Exploration (testing fresh viral genres).
+    """
+    tracked_videos = get_tracked_videos_for_analytics(limit=50)
+    if not tracked_videos:
+        return {
+            "top_topics": [],
+            "low_topics": [],
+            "strategy_mode": "EXPLORATION (Unrestricted Innovation)"
+        }
+        
+    sorted_videos = sorted(
+        tracked_videos, 
+        key=lambda v: (v.get("yt_views", 0) + v.get("fb_views", 0) + v.get("viral_score", 0)), 
+        reverse=True
+    )
+    
+    top_topics = []
+    low_topics = []
+    
+    for v in sorted_videos[:8]:
+        title = v.get("title", "")
+        tot_views = v.get("yt_views", 0) + v.get("fb_views", 0)
+        if tot_views > 10 or v.get("viral_score", 0) > 0:
+            top_topics.append(title[:40])
+            
+    for v in sorted_videos[-6:]:
+        title = v.get("title", "")
+        tot_views = v.get("yt_views", 0) + v.get("fb_views", 0)
+        if tot_views <= 5:
+            low_topics.append(title[:40])
+            
+    is_exploration = random.random() < 0.25 or len(top_topics) == 0
+    strategy_mode = "EXPLORATION (Unrestricted Innovation)" if is_exploration else "EXPLOITATION (Precision Scaling on Winners)"
+    
+    print(f"\n[RLAF ADAPTIVE ENGINE] Mode: {strategy_mode}")
+    if top_topics:
+        print(f"[RLAF ADAPTIVE ENGINE] Reinforcing Top Concepts: {top_topics[:3]}")
+    if low_topics:
+        print(f"[RLAF ADAPTIVE ENGINE] Downweighting Low Concepts: {low_topics[:2]}")
+        
+    return {
+        "top_topics": top_topics,
+        "low_topics": low_topics,
+        "strategy_mode": strategy_mode
+    }
+
 def run_meta_optimizer(category: str, platform: str = "youtube", epsilon: float = 0.20) -> dict:
     """
     Independent Platform RLAF Meta-Agent:
