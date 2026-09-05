@@ -9,6 +9,8 @@ from app.discovery.imgur_scraper import fetch_top_clips as fetch_imgur
 from app.discovery.downloader import download_video
 from app.ai.vision import analyze_video_and_generate_script, generate_compilation_details, generate_compilation_title
 from app.video.editor import normalize_video, merge_compilation, create_meme_transition_clip, extract_frame
+from app.ai.generator import generate_ai_dilemmas
+from app.video.ai_generator import create_dilemma_video, create_dilemma_compilation
 from app.video.thumbnail import generate_thumbnail
 from app.upload.youtube import upload_to_youtube
 from app.upload.facebook import upload_to_facebook
@@ -63,218 +65,80 @@ def main():
         yt_long_profile = get_active_profile(long_category, platform="youtube")
         fb_long_profile = get_active_profile(long_category, platform="facebook")
         
-    # 1. Discover clips for Short using combined multi-platform discovery queries
-    print(f"\n--- Phase 1: Scraping a pool of clips for the Individual Short ({short_category}) ---")
-    custom_yt_queries = yt_short_profile.get("phase_1_discovery_directives", {}).get("primary_search_queries", [])
-    custom_fb_queries = fb_short_profile.get("phase_1_discovery_directives", {}).get("primary_search_queries", [])
-    combined_queries = list(dict.fromkeys(custom_yt_queries + custom_fb_queries))
+    # --- PHASE 1: GENERATE VIRAL AI DILEMMAS ---
+    print(f"\n--- Phase 1: Generating 100% AI Dilemmas ({primary_mood}) ---")
+    dilemmas = generate_ai_dilemmas(theme=primary_mood, count=4)
+    short_dilemma = dilemmas[0]
+    comp_dilemmas = dilemmas[1:4]
     
-    short_pool = []
-    short_pool.extend(fetch_youtube(15, query_type=primary_mood, custom_queries=combined_queries))
-    short_pool.extend(fetch_tiktok(15, query_type=primary_mood))
-    short_pool.extend(fetch_imgur(15, query_type=primary_mood))
-        
-    print(f"Total Short Pool size built: {len(short_pool)} items (YouTube -> TikTok -> Imgur)")
-        
-    # 2. Discover clips for the 3-Clip Compilation (RLAF Dynamic Discovery)
-    print(f"\n--- Phase 2: Scraping for 3-Clip Compilation ({long_category}) ---")
-    custom_long_queries = list(dict.fromkeys(
-        yt_long_profile.get("phase_1_discovery_directives", {}).get("primary_search_queries", []) +
-        fb_long_profile.get("phase_1_discovery_directives", {}).get("primary_search_queries", [])
-    ))
-    comp_pool = []
-    comp_pool.extend(fetch_youtube(20, query_type=primary_mood, custom_queries=custom_long_queries))
-    comp_pool.extend(fetch_imgur(20, query_type=primary_mood))
-    comp_pool.extend(fetch_tiktok(10, query_type=primary_mood))
-    print(f"Total Compilation Pool size built: {len(comp_pool)} items (YouTube -> Imgur -> TikTok)")
-            
-    # 3. Process the Individual Short (Stop after 1 success)
-    print(f"\n--- Processing Individual Short ({short_category}) ---")
-    short_success = False
-    short_clip_id = None
     uploaded_short_title = None
     uploaded_comp_title = None
     
-    for target_clip in short_pool:
-        # HARD RULE: Verify link/ID in database before downloading
-        if is_video_used(target_clip['id']):
-            print(f"Skipping duplicate Short candidate: {target_clip['id']} (Already in DB)")
-            continue
-            
-        print(f"\nEvaluating Short candidate: {target_clip['title']}")
-        
-        raw_video_path = os.path.join("data", "temp", f"raw_short_{target_clip['id']}.mp4")
-        downloaded_path = download_video(target_clip["url"], raw_video_path)
-        if not downloaded_path:
-            continue
-            
-        try:
-            probe = ffmpeg.probe(downloaded_path)
-            clip_duration = float(probe['format']['duration'])
-            if clip_duration > 180:
-                print("Clip too long for a Short. Skipping (Max 3 minutes).")
-                continue
-        except Exception:
-            pass
-            
-        ai_data = analyze_video_and_generate_script(downloaded_path, is_short=True, profile=yt_short_profile)
-        if ai_data.get("rejected"):
-            print(f"Skipping {target_clip['id']} because it was flagged as inappropriate, sad, or not engaging enough for a Short.")
-            continue
-            
-        yt_title = ai_data.get("yt_title") or ai_data.get("title", "")
-        fb_title = ai_data.get("fb_title") or ai_data.get("title", "")
-        
-        watermark_handle = "@DailyDosOfFun"
-        final_video_path = os.path.join("data", "output", f"final_{target_clip['id']}.mp4")
-        rendered_path = normalize_video(
-            downloaded_path, final_video_path, is_short=True, 
-            watermark_text=watermark_handle, 
-            start_time=ai_data.get("hook_start", 0.0), 
-            end_time=ai_data.get("hook_end")
-        )
-        
-        if rendered_path:
-            print(f"Uploading individual Short | YT: '{yt_title}' | FB: '{fb_title}'...")
-            base_title = target_clip['title'].strip()
-            
-            # --- Dedicated YouTube Metadata ---
-            yt_c_gate = yt_short_profile.get("phase_6_copywriting_directives", {})
-            yt_cta = yt_c_gate.get("comment_cta") or "Which moment was your favorite? Drop a comment below! 👇"
-            yt_hashtags = " ".join(yt_c_gate.get("hashtag_stack", [])) or "#shorts #viral #funny #reaction"
-            yt_intro = yt_c_gate.get("description_intro") or f"In this quick Short, we react to: {base_title}!"
-            yt_tags = yt_c_gate.get("tag_keywords") or ["shorts", "viral", "funny", "comedy", "reaction"]
-            yt_description = f"""{yt_intro}\n\n💬 QUESTION: {yt_cta}\n\n🔔 SUBSCRIBE to Daily Dose of Fun for daily viral moments: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 Follow our Official Facebook Page: https://www.facebook.com/profile.php?id=100077547189991\n\nVia {target_clip.get('source', 'Unknown')}\n{yt_hashtags}"""
-
-            # --- Dedicated Facebook Metadata ---
-            fb_c_gate = fb_short_profile.get("phase_6_copywriting_directives", {})
-            fb_cta = fb_c_gate.get("comment_cta") or "Tag a friend who needs to see this! 😂👇"
-            fb_hashtags = " ".join(fb_c_gate.get("hashtag_stack", [])) or "#reels #viral #comedy #epicfails"
-            fb_intro = fb_c_gate.get("description_intro") or f"Wait till the end! 🤣 {base_title}"
-            fb_description = f"""{fb_intro}\n\n💬 {fb_cta}\n\n📱 Follow Daily Dose of Fun for daily laughs: https://www.facebook.com/profile.php?id=100077547189991\n🔔 YouTube: https://www.youtube.com/@DailyDosOfFun-q2t\n\n{fb_hashtags}"""
-                
-            thumb_path = os.path.join("data", "output", f"thumb_{target_clip['id']}.jpg")
-            generate_thumbnail(rendered_path, thumb_path)
-            
-            yt_res = upload_to_youtube(rendered_path, yt_title, yt_description, yt_tags, thumbnail_path=thumb_path)
-            fb_res = upload_to_facebook(rendered_path, fb_title, fb_description, is_compilation=False, thumbnail_path=thumb_path)
-            
-            # Log metrics tracking into Supabase with short_category tag
-            log_video_analytics(
-                video_id=target_clip['id'],
-                title=yt_title,
-                category=short_category,
-                hook_style=target_clip.get('source', 'Short'),
-                yt_id=str(yt_res) if yt_res and str(yt_res) != "True" else None,
-                fb_id=str(fb_res) if fb_res and str(fb_res) != "True" else None
-            )
-            
-            mark_video_used(target_clip['id'], target_clip['title'])
-            short_clip_id = target_clip['id']
-            uploaded_short_title = f"YT: '{yt_title}' | FB: '{fb_title}'"
-            short_success = True
-            break  # Stop after 1 successful short
-            
-    if not short_success:
-        print("Warning: Failed to upload any Short after exhausting the pool.")
-        
-    # 4. Process 3-Clip Compilation
-    print("\n--- Processing 3-Clip Compilation ---")
-    merged_path = None
-    processed_compilation_shorts = []
-    compilation_titles = []
-    total_duration = 0.0
-    TARGET_CLIPS = 3  # Fast, viral, and high-retention: 3 punchy clips
-    CLIP_MAX_DURATION = 16.0  # 12-16s per clip
+    # --- PHASE 2: RENDER & UPLOAD INDIVIDUAL SHORT ---
+    print(f"\n--- Phase 2: Rendering AI Short: {short_dilemma['topic']} ---")
+    short_id = f"ai_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    short_path = os.path.join("data", "output", f"short_{short_id}.mp4")
+    rendered_short = create_dilemma_video(short_dilemma, short_path)
     
-    for target_clip in comp_pool:
-        if len(processed_compilation_shorts) >= TARGET_CLIPS:
-            print(f"Successfully gathered {TARGET_CLIPS} viral clips for compilation! (Total: {total_duration:.1f}s)")
-            break
-            
-        if 'short_clip_id' in locals() and short_clip_id and target_clip['id'] == short_clip_id:
-            print(f"Skipping {target_clip['id']} because it was already used for the Individual Short.")
-            continue
-            
-        # HARD RULE: Verify link/ID in database before downloading compilation clip
-        if is_video_used(target_clip['id']):
-            print(f"Skipping duplicate Compilation candidate: {target_clip['id']} (Already in DB)")
-            continue
-            
-        print(f"\nEvaluating Compilation candidate: {target_clip['title']}")
-        raw_video_path = os.path.join("data", "temp", f"raw_comp_{target_clip['id']}.mp4")
-        downloaded_path = download_video(target_clip["url"], raw_video_path)
-        if not downloaded_path:
-            continue
-            
-        try:
-            probe = ffmpeg.probe(downloaded_path)
-            clip_duration = float(probe['format']['duration'])
-            if clip_duration < 4.0:
-                print("Clip too short. Skipping.")
-                continue
-        except Exception:
-            clip_duration = 15.0
-            
-        ai_data = analyze_video_and_generate_script(downloaded_path, profile=yt_long_profile)
-        if ai_data.get("rejected"):
-            print(f"Skipping {target_clip['id']} because it was flagged as inappropriate or sad.")
-            continue
-            
-        # Between clips: generate an animated meme transition poster clip
-        if processed_compilation_shorts:
-            frame_path = os.path.join("data", "temp", f"frame_{target_clip['id']}.jpg")
-            extract_frame(downloaded_path, frame_path, timestamp=1.0)
-            
-            trans_clip_path = os.path.join("data", "output", f"trans_{len(processed_compilation_shorts)}_{target_clip['id']}.mp4")
-            caption = ai_data.get("meme_caption") or "Wait till you see what happens next! 😂"
-            create_meme_transition_clip(caption=caption, output_path=trans_clip_path, duration=1.5, previous_frame_path=frame_path)
-            
-            if os.path.exists(trans_clip_path):
-                processed_compilation_shorts.append(trans_clip_path)
-                total_duration += 1.5
-            
-        # Standardize clip to 15-20s max duration maintaining native 9:16 aspect ratio
-        normalized_path = os.path.join("data", "output", f"norm_{target_clip['id']}.mp4")
-        if normalize_video(
-            downloaded_path, normalized_path, is_short=False, 
-            max_duration=CLIP_MAX_DURATION, watermark_text=watermark_handle,
-            start_time=ai_data.get("hook_start", 0.0),
-            end_time=ai_data.get("hook_end")
-        ):
-            processed_compilation_shorts.append(normalized_path)
-            if ai_data.get("title"):
-                compilation_titles.append(ai_data["title"])
-            total_duration += min(clip_duration, CLIP_MAX_DURATION)
-            try:
-                mark_video_used(target_clip['id'], target_clip['title'])
-            except Exception:
-                pass
-        else:
-            print(f"Failed to normalize {target_clip['id']}. Skipping.")
-                
-        if len(processed_compilation_shorts) > 1:
-            print(f"\n--- Creating Compilation Video with Meme Transition Hooks ({long_category}) ---")
-            compilation_path = os.path.join("data", "output", "compilation.mp4")
-            merged_path = merge_compilation(processed_compilation_shorts, compilation_path)
-            if merged_path:
-                yt_comp_title, yt_summary = generate_compilation_details(compilation_titles, mood=primary_mood, profile=yt_long_profile)
-                fb_comp_title, fb_summary = generate_compilation_details(compilation_titles, mood=primary_mood, profile=fb_long_profile)
-                
-                # --- Dedicated YouTube Compilation Description ---
-                yt_comp_description = f"""{yt_summary}\n\n🏆 WHICH CLIP WAS YOUR FAVORITE? Drop your vote in the comments below! 👇\n\n🔔 NEVER MISS A LAUGH: Subscribe & tap the bell for daily compilations: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 FOLLOW OUR FACEBOOK PAGE: https://www.facebook.com/profile.php?id=100077547189991\n\n#funny #epicfails #meme #compilation #reaction #comedy #viral #laugh #trynottolaugh #bestof #trending"""
-                yt_comp_tags = ["funny", "epic fails", "meme", "compilation", "reaction", "comedy", "viral", "laugh", "try not to laugh", "best of", "relatable fails"]
-
-                # --- Dedicated Facebook Compilation Description ---
-                fb_comp_description = f"""{fb_summary}\n\n💬 Which clip made you laugh the hardest? Tag a friend who needs to watch this! 😂👇\n\n📱 Follow Daily Dose of Fun for daily viral moments: https://www.facebook.com/profile.php?id=100077547189991\n🔔 YouTube: https://www.youtube.com/@DailyDosOfFun-q2t\n\n#reels #funnyreels #epicfails #viralpost #comedy"""
-
-    # 5. Upload the final Compilation Video
-    if merged_path:
-        comp_thumb_path = os.path.join("data", "output", "comp_thumb.jpg")
-        generate_thumbnail(merged_path, comp_thumb_path)
+    if rendered_short and os.path.exists(rendered_short):
+        yt_title = short_dilemma.get("yt_title", "Would You Rather? ⚡ #shorts #viral")
+        fb_title = short_dilemma.get("fb_title", "Which one are you choosing? Be honest! 😂👇")
         
-        comp_yt_res = upload_to_youtube(merged_path, yt_comp_title, yt_comp_description, yt_comp_tags, thumbnail_path=comp_thumb_path)
-        comp_fb_res = upload_to_facebook(merged_path, fb_comp_title, fb_comp_description, is_compilation=True, thumbnail_path=comp_thumb_path)
+        # Dedicated YouTube Metadata
+        yt_cta = short_dilemma.get("comment_cta") or "Which one did you choose? Comment below! 👇"
+        yt_tags = short_dilemma.get("tags") or ["shorts", "wouldyourather", "dilemma", "viral", "challenge", "quiz"]
+        yt_hashtags = " ".join([f"#{t}" for t in yt_tags[:5]])
+        yt_description = f"""⚡ WOULD YOU RATHER: {short_dilemma.get('topic')}!\n\n💬 QUESTION: {yt_cta}\n\n🔔 SUBSCRIBE to Daily Dose of Fun for daily viral challenges: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 Follow our Facebook Page: https://www.facebook.com/profile.php?id=100077547189991\n\n{yt_hashtags}"""
+
+        # Dedicated Facebook Metadata
+        fb_description = f"""⚡ {short_dilemma.get('topic')}\n\n💬 {fb_title}\n\n📱 Follow Daily Dose of Fun for daily viral dilemmas: https://www.facebook.com/profile.php?id=100077547189991\n🔔 YouTube: https://www.youtube.com/@DailyDosOfFun-q2t\n\n#reels #wouldyourather #challenge #viralpost #pickone"""
+        
+        thumb_path = os.path.join("data", "output", f"thumb_{short_id}.jpg")
+        generate_thumbnail(rendered_short, thumb_path)
+        
+        print(f"Uploading AI Short | YT: '{yt_title}' | FB: '{fb_title}'...")
+        yt_res = upload_to_youtube(rendered_short, yt_title, yt_description, yt_tags, thumbnail_path=thumb_path)
+        fb_res = upload_to_facebook(rendered_short, fb_title, fb_description, is_compilation=False, thumbnail_path=thumb_path)
+        
+        log_video_analytics(
+            video_id=short_id,
+            title=yt_title,
+            category=short_category,
+            hook_style="AI_Dilemma",
+            yt_id=str(yt_res) if yt_res and str(yt_res) != "True" else None,
+            fb_id=str(fb_res) if fb_res and str(fb_res) != "True" else None
+        )
+        uploaded_short_title = f"YT: '{yt_title}' | FB: '{fb_title}'"
+
+    # --- PHASE 3: RENDER & UPLOAD 3-ROUND COMPILATION ---
+    print("\n--- Phase 3: Rendering 3-Round AI Showdown Compilation ---")
+    comp_id = f"comp_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    comp_path = os.path.join("data", "output", f"comp_{comp_id}.mp4")
+    rendered_comp = create_dilemma_compilation(comp_dilemmas, comp_path)
+    
+    if rendered_comp and os.path.exists(rendered_comp):
+        yt_comp_title = f"The Ultimate Dilemma Showdown! ⚡ 3 Impossible Choices! #shorts #viral"
+        fb_comp_title = f"3 Impossible Decisions: How many did you agree with? 😂👇"
+        
+        yt_comp_desc = f"""🔥 3 ROUNDS OF IMPOSSIBLE CHOICES! Which ones did you pick?\n\n🏆 Drop your score in the comments below! 👇\n\n🔔 SUBSCRIBE for daily interactive challenges: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 Follow on Facebook: https://www.facebook.com/profile.php?id=100077547189991\n\n#shorts #wouldyourather #challenge #viral #quiz #impossiblechoices"""
+        fb_comp_desc = f"""🔥 3 Rounds of Impossible Dilemmas! Tag a friend to see if you agree on any of these! 😂👇\n\n📱 Follow Daily Dose of Fun for daily challenges: https://www.facebook.com/profile.php?id=100077547189991\n🔔 YouTube: https://www.youtube.com/@DailyDosOfFun-q2t\n\n#reels #wouldyourather #viralreels #dilemma #challenge"""
+        
+        comp_tags = ["shorts", "wouldyourather", "compilation", "challenge", "viral", "quiz"]
+        comp_thumb_path = os.path.join("data", "output", f"comp_thumb_{comp_id}.jpg")
+        generate_thumbnail(rendered_comp, comp_thumb_path)
+        
+        print(f"Uploading AI Compilation | YT: '{yt_comp_title}' | FB: '{fb_comp_title}'...")
+        comp_yt_res = upload_to_youtube(rendered_comp, yt_comp_title, yt_comp_desc, comp_tags, thumbnail_path=comp_thumb_path)
+        comp_fb_res = upload_to_facebook(rendered_comp, fb_comp_title, fb_comp_desc, is_compilation=True, thumbnail_path=comp_thumb_path)
+        
+        log_video_analytics(
+            video_id=comp_id,
+            title=yt_comp_title,
+            category=long_category,
+            hook_style="AI_Compilation",
+            yt_id=str(comp_yt_res) if comp_yt_res and str(comp_yt_res) != "True" else None,
+            fb_id=str(comp_fb_res) if comp_fb_res and str(comp_fb_res) != "True" else None
+        )
         uploaded_comp_title = f"YT: '{yt_comp_title}'\n  • FB: '{fb_comp_title}'"
         
         log_video_analytics(
