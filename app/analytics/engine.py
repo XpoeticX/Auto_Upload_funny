@@ -205,18 +205,35 @@ def fetch_and_update_metrics() -> None:
 
         if fb_id and fb_token:
             try:
+                # 1. Fetch likes, comments, shares from Video / Post object
                 fb_url = f"https://graph.facebook.com/v19.0/{fb_id}"
                 params = {
-                    "fields": "views,shares,comments.summary(true),likes.summary(true)",
+                    "fields": "shares,comments.summary(true),likes.summary(true)",
                     "access_token": fb_token
                 }
                 r = requests.get(fb_url, params=params, timeout=10)
                 if r.status_code == 200:
                     fb_data = r.json()
-                    fb_views = int(fb_data.get("views", 0))
                     fb_shares = int(fb_data.get("shares", {}).get("count", 0) if isinstance(fb_data.get("shares"), dict) else 0)
                     fb_comments = int(fb_data.get("comments", {}).get("summary", {}).get("total_count", 0))
                     fb_likes = int(fb_data.get("likes", {}).get("summary", {}).get("total_count", 0))
+                    
+                # 2. Fetch real view counts from video_insights
+                ins_url = f"https://graph.facebook.com/v19.0/{fb_id}/video_insights"
+                ins_params = {
+                    "metric": "total_video_views",
+                    "access_token": fb_token
+                }
+                ins_r = requests.get(ins_url, params=ins_params, timeout=10)
+                if ins_r.status_code == 200:
+                    ins_data = ins_r.json().get("data", [])
+                    for m in ins_data:
+                        if m.get("name") == "total_video_views":
+                            vals = m.get("values", [])
+                            if vals:
+                                fb_views = int(vals[0].get("value", 0))
+                elif r.status_code == 200 and "views" in fb_data:
+                    fb_views = int(fb_data.get("views", 0))
             except Exception as e:
                 print(f"Could not fetch Facebook metrics for {fb_id}: {e}")
 

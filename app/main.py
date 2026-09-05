@@ -191,70 +191,67 @@ def main():
         if len(processed_compilation_shorts) >= TARGET_CLIPS:
             print(f"Successfully gathered {TARGET_CLIPS} viral clips for compilation! (Total: {total_duration:.1f}s)")
             break
-                
-            if 'short_clip_id' in locals() and short_clip_id and target_clip['id'] == short_clip_id:
-                print(f"Skipping {target_clip['id']} because it was already used for the Individual Short.")
+            
+        if 'short_clip_id' in locals() and short_clip_id and target_clip['id'] == short_clip_id:
+            print(f"Skipping {target_clip['id']} because it was already used for the Individual Short.")
+            continue
+            
+        # HARD RULE: Verify link/ID in database before downloading compilation clip
+        if is_video_used(target_clip['id']):
+            print(f"Skipping duplicate Compilation candidate: {target_clip['id']} (Already in DB)")
+            continue
+            
+        print(f"\nEvaluating Compilation candidate: {target_clip['title']}")
+        raw_video_path = os.path.join("data", "temp", f"raw_comp_{target_clip['id']}.mp4")
+        downloaded_path = download_video(target_clip["url"], raw_video_path)
+        if not downloaded_path:
+            continue
+            
+        try:
+            probe = ffmpeg.probe(downloaded_path)
+            clip_duration = float(probe['format']['duration'])
+            if clip_duration < 4.0:
+                print("Clip too short. Skipping.")
                 continue
-                
-            # HARD RULE: Verify link/ID in database before downloading compilation clip
-            if is_video_used(target_clip['id']):
-                print(f"Skipping duplicate Compilation candidate: {target_clip['id']} (Already in DB)")
-                continue
-                
-            print(f"\nEvaluating Compilation candidate: {target_clip['title']}")
-            raw_video_path = os.path.join("data", "temp", f"raw_comp_{target_clip['id']}.mp4")
-            downloaded_path = download_video(target_clip["url"], raw_video_path)
-            if not downloaded_path:
-                continue
-                
+        except Exception:
+            clip_duration = 15.0
+            
+        ai_data = analyze_video_and_generate_script(downloaded_path, profile=yt_long_profile)
+        if ai_data.get("rejected"):
+            print(f"Skipping {target_clip['id']} because it was flagged as inappropriate or sad.")
+            continue
+            
+        # Between clips: generate an animated meme transition poster clip
+        if processed_compilation_shorts:
+            frame_path = os.path.join("data", "temp", f"frame_{target_clip['id']}.jpg")
+            extract_frame(downloaded_path, frame_path, timestamp=1.0)
+            
+            trans_clip_path = os.path.join("data", "output", f"trans_{len(processed_compilation_shorts)}_{target_clip['id']}.mp4")
+            caption = ai_data.get("meme_caption") or "Wait till you see what happens next! 😂"
+            create_meme_transition_clip(caption=caption, output_path=trans_clip_path, duration=1.5, previous_frame_path=frame_path)
+            
+            if os.path.exists(trans_clip_path):
+                processed_compilation_shorts.append(trans_clip_path)
+                total_duration += 1.5
+            
+        # Standardize clip to 15-20s max duration maintaining native 9:16 aspect ratio
+        normalized_path = os.path.join("data", "output", f"norm_{target_clip['id']}.mp4")
+        if normalize_video(
+            downloaded_path, normalized_path, is_short=False, 
+            max_duration=CLIP_MAX_DURATION, watermark_text=watermark_handle,
+            start_time=ai_data.get("hook_start", 0.0),
+            end_time=ai_data.get("hook_end")
+        ):
+            processed_compilation_shorts.append(normalized_path)
+            if ai_data.get("title"):
+                compilation_titles.append(ai_data["title"])
+            total_duration += min(clip_duration, CLIP_MAX_DURATION)
             try:
-                probe = ffmpeg.probe(downloaded_path)
-                clip_duration = float(probe['format']['duration'])
-                if clip_duration < 4.0:
-                    print("Clip too short. Skipping.")
-                    continue
-                if total_duration + min(clip_duration, CLIP_MAX_DURATION) > MAX_DURATION:
-                    print("Adding this clip would exceed the 15-minute limit. Skipping.")
-                    continue
+                mark_video_used(target_clip['id'], target_clip['title'])
             except Exception:
-                clip_duration = 15.0
-                
-            ai_data = analyze_video_and_generate_script(downloaded_path, profile=long_profile)
-            if ai_data.get("rejected"):
-                print(f"Skipping {target_clip['id']} because it was flagged as inappropriate or sad.")
-                continue
-                
-            # Between clips: generate an animated meme transition poster clip so viewers know it's a new video
-            if processed_compilation_shorts:
-                frame_path = os.path.join("data", "temp", f"frame_{target_clip['id']}.jpg")
-                extract_frame(downloaded_path, frame_path, timestamp=1.0)
-                
-                trans_clip_path = os.path.join("data", "output", f"trans_{len(processed_compilation_shorts)}_{target_clip['id']}.mp4")
-                caption = ai_data.get("meme_caption") or "Wait till you see what happens next! 😂"
-                create_meme_transition_clip(caption=caption, output_path=trans_clip_path, duration=1.5, previous_frame_path=frame_path)
-                
-                if os.path.exists(trans_clip_path):
-                    processed_compilation_shorts.append(trans_clip_path)
-                    total_duration += 1.5
-                
-            # Standardize clip to 15-20s max duration maintaining native 9:16 aspect ratio
-            normalized_path = os.path.join("data", "output", f"norm_{target_clip['id']}.mp4")
-            if normalize_video(
-                downloaded_path, normalized_path, is_short=False, 
-                max_duration=CLIP_MAX_DURATION, watermark_text=watermark_handle,
-                start_time=ai_data.get("hook_start", 0.0),
-                end_time=ai_data.get("hook_end")
-            ):
-                processed_compilation_shorts.append(normalized_path)
-                if ai_data.get("title"):
-                    compilation_titles.append(ai_data["title"])
-                total_duration += min(clip_duration, CLIP_MAX_DURATION)
-                try:
-                    mark_video_used(target_clip['id'], target_clip['title'])
-                except Exception:
-                    pass
-            else:
-                print(f"Failed to normalize {target_clip['id']}. Skipping.")
+                pass
+        else:
+            print(f"Failed to normalize {target_clip['id']}. Skipping.")
                 
         if len(processed_compilation_shorts) > 1:
             print(f"\n--- Creating Compilation Video with Meme Transition Hooks ({long_category}) ---")

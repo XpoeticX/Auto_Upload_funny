@@ -78,8 +78,9 @@ def analyze_video_and_generate_script(video_path: str, is_short: bool = False, p
     
     REJECTION CRITERIA:
     1. If the video makes fun of disabled people, contains violence, tragedy, hate speech, or offensive/NSFW content, output ONLY: REJECT
-    2. If the video is a stand-up comedy routine on a stage, output ONLY: REJECT
-    3. If the video is completely boring, slow-paced, static, or uninteresting, output ONLY: REJECT
+    2. If the video is a podcast interview, talking head with microphone, hair/makeup tutorial, or stage stand-up comedy, output ONLY: REJECT
+    3. If the video is in a foreign non-English language with foreign subtitles, output ONLY: REJECT
+    4. If the video is completely boring, slow-paced, static, or uninteresting, output ONLY: REJECT
     {short_constraint}
     {islamic_constraint}
     If the video meets safety and engagement standards, generate:
