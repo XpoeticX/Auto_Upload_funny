@@ -115,3 +115,28 @@ def build_full_ai_short(raw_ai_video: str, voiceover_text: str, output_path: str
     if res.returncode == 0 and os.path.exists(output_path):
         return output_path
     return None
+
+def build_sfx_ai_short(raw_ai_video: str, audio_sfx_track: str, output_path: str, loops: int = 3) -> str:
+    """
+    Creates a pure Sound Effect + Cartoon Music AI Short (NO AI VOICE / NO NARRATOR),
+    matching viral channels like Manoranjan Tales (236M views).
+    """
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    filter_complex = (
+        f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,loop=loop={loops-1}:size=90:start=0,setpts=PTS-STARTPTS[v]"
+    )
+    cmd = [
+        "ffmpeg", "-y",
+        "-stream_loop", str(loops), "-i", raw_ai_video,
+        "-i", audio_sfx_track,
+        "-filter_complex", filter_complex,
+        "-map", "[v]", "-map", "1:a",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k",
+        "-shortest",
+        output_path
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode == 0 and os.path.exists(output_path):
+        return output_path
+    return None
