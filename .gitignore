@@ -5,6 +5,7 @@ __pycache__/
 # Local Data and Temp Media
 data/temp/*
 data/output/*
+data/assets/*
 concat_list.txt
 
 # Local tokens and secrets

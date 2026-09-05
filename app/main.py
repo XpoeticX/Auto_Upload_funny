@@ -17,6 +17,7 @@ from app.video.thumbnail import generate_thumbnail
 from app.upload.youtube import upload_to_youtube
 from app.upload.facebook import upload_to_facebook
 from app.analytics.engine import fetch_and_update_metrics, run_meta_optimizer, get_active_profile, send_telegram_report, get_rlaf_ai_feedback
+from app.story.director import generate_viral_story_concept, render_story_video
 
 def cleanup():
     print("Cleaning up temp folders...")
@@ -77,69 +78,39 @@ def main():
     uploaded_short_title = None
     uploaded_comp_title = None
     
-    # --- PHASE 2: ZERO-COST TRANSFORMATIVE AI REMIX (REAL MOTION + AI VOICEOVER) ---
-    print(f"\n--- Phase 2: Curating Viral Clips for AI Character Remix ({primary_mood}) ---")
-    short_pool = []
-    try:
-        short_pool.extend(fetch_youtube(10, query_type=primary_mood))
-        short_pool.extend(fetch_imgur(10, query_type=primary_mood))
-    except Exception as e:
-        print(f"Scraper notice: {e}")
+    # --- PHASE 2: 100% REAL AI 3-ACT STORY GENERATION (RLAF DECIDED + NEURAL MOTION + DYNAMIC FOLEY & MUSIC) ---
+    print(f"\n--- Phase 2: Autonomous AI Story Generation (RLAF Steered: {primary_mood}) ---")
+    story_concept = generate_viral_story_concept(rlaf_feedback=rlaf_feedback)
+    story_id = f"story_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    story_out = os.path.join("data", "output", f"{story_id}.mp4")
 
+    rendered_short = render_story_video(story_concept, story_out)
     remix_success = False
-    for target_clip in short_pool:
-        if is_video_used(target_clip['id']):
-            continue
-            
-        print(f"Evaluating candidate for AI Remix: {target_clip['title']}")
-        raw_path = os.path.join("data", "temp", f"raw_{target_clip['id']}.mp4")
-        downloaded = download_video(target_clip["url"], raw_path)
-        if not downloaded:
-            continue
-            
-        try:
-            p = ffmpeg.probe(downloaded)
-            clip_dur = float(p['format']['duration'])
-            if clip_dur < 5.0 or clip_dur > 45.0:
-                print("Clip duration out of range for Short. Skipping.")
-                continue
-        except Exception:
-            clip_dur = 14.0
-
-        print(f"Generating AI Character Voiceover for: {target_clip['title']}")
-        ai_data = generate_ai_narration(downloaded, clip_duration=clip_dur)
+    if rendered_short and os.path.exists(rendered_short):
+        yt_title = story_concept.get("yt_title", f"{story_concept.get('title')} 🐾😂 #shorts #viral")
+        fb_title = story_concept.get("fb_title", f"Wait till the end! 😂 Tag someone who needs to see this!")
+        yt_tags = story_concept.get("tags") or ["shorts", "viral", "animation", "comedy"]
+        yt_hashtags = " ".join([f"#{t}" for t in yt_tags[:5]])
+        yt_description = f"""{yt_title}\n\n💬 {fb_title}\n\n🔔 SUBSCRIBE to Daily Dose of Fun for daily laughs: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 Follow on Facebook: https://www.facebook.com/profile.php?id=100077547189991\n\n{yt_hashtags}"""
+        fb_description = f"""{fb_title}\n\n📱 Follow Daily Dose of Fun for daily viral moments: https://www.facebook.com/profile.php?id=100077547189991\n🔔 YouTube: https://www.youtube.com/@DailyDosOfFun-q2t\n\n#reels #funnyreels #viral #animation #comedy"""
         
-        remix_out = os.path.join("data", "output", f"remix_{target_clip['id']}.mp4")
-        rendered_short = transform_video_with_ai(downloaded, ai_data, remix_out)
+        thumb_path = os.path.join("data", "output", f"thumb_{story_id}.jpg")
+        generate_thumbnail(rendered_short, thumb_path)
         
-        if rendered_short and os.path.exists(rendered_short):
-            yt_title = ai_data.get("yt_title", "Wait for the reaction 😂💀 #shorts #viral")
-            fb_title = ai_data.get("fb_title", "He took it so personally 😂 Tag a friend! 👇")
-            
-            yt_tags = ai_data.get("tags") or ["shorts", "viral", "funny", "pets", "comedy"]
-            yt_hashtags = " ".join([f"#{t}" for t in yt_tags[:5]])
-            yt_description = f"""{yt_title}\n\n💬 {fb_title}\n\n🔔 SUBSCRIBE to Daily Dose of Fun for daily laughs: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 Follow on Facebook: https://www.facebook.com/profile.php?id=100077547189991\n\n{yt_hashtags}"""
-            fb_description = f"""{fb_title}\n\n📱 Follow Daily Dose of Fun for daily viral moments: https://www.facebook.com/profile.php?id=100077547189991\n🔔 YouTube: https://www.youtube.com/@DailyDosOfFun-q2t\n\n#reels #funnyreels #viral #comedy"""
-            
-            thumb_path = os.path.join("data", "output", f"thumb_{target_clip['id']}.jpg")
-            generate_thumbnail(rendered_short, thumb_path)
-            
-            print(f"Uploading Transformed AI Short | YT: '{yt_title}' | FB: '{fb_title}'...")
-            yt_res = upload_to_youtube(rendered_short, yt_title, yt_description, yt_tags, thumbnail_path=thumb_path)
-            fb_res = upload_to_facebook(rendered_short, fb_title, fb_description, is_compilation=False, thumbnail_path=thumb_path)
-            
-            log_video_analytics(
-                video_id=target_clip['id'],
-                title=yt_title,
-                category=short_category,
-                hook_style="AI_Remix",
-                yt_id=str(yt_res) if yt_res and str(yt_res) != "True" else None,
-                fb_id=str(fb_res) if fb_res and str(fb_res) != "True" else None
-            )
-            mark_video_used(target_clip['id'], target_clip['title'])
-            uploaded_short_title = f"YT: '{yt_title}' | FB: '{fb_title}'"
-            remix_success = True
-            break
+        print(f"Uploading 100% AI Story Short | YT: '{yt_title}' | FB: '{fb_title}'...")
+        yt_res = upload_to_youtube(rendered_short, yt_title, yt_description, yt_tags, thumbnail_path=thumb_path)
+        fb_res = upload_to_facebook(rendered_short, fb_title, fb_description, is_compilation=False, thumbnail_path=thumb_path)
+        
+        log_video_analytics(
+            video_id=story_id,
+            title=yt_title,
+            category=story_concept.get("niche", "AI_Animation"),
+            hook_style="AI_Story_3Act",
+            yt_id=str(yt_res) if yt_res and str(yt_res) != "True" else None,
+            fb_id=str(fb_res) if fb_res and str(fb_res) != "True" else None
+        )
+        uploaded_short_title = f"YT: '{yt_title}' | FB: '{fb_title}'"
+        remix_success = True
 
     # Fail-safe Fallback: If scraper pool was empty or blocked, generate 100% AI Dilemma Short
     if not remix_success:
