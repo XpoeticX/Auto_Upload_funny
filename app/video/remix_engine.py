@@ -33,7 +33,9 @@ def create_meme_overlay(headline: str, output_png_path: str, watermark: str = "@
     draw = ImageDraw.Draw(img)
 
     # 1. Top Meme Headline Pill (Y: 90 -> 230)
-    headline_clean = headline.upper().strip()
+    import re
+    emoji_pattern = re.compile("[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\u2b50]+", flags=re.UNICODE)
+    headline_clean = emoji_pattern.sub('', headline).strip().upper()
     draw.rounded_rectangle([60, 90, 1020, 230], radius=35, fill=(15, 23, 42, 235), outline=(245, 158, 11), width=5)
 
     f_headline = get_font(52)
