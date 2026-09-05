@@ -30,12 +30,12 @@ def fetch_top_clips(limit=6, query_type="funny", custom_queries: list = None):
         search_query = raw_q if raw_q.startswith("ytsearch") else f'ytsearch30:"{raw_q}" #shorts'
     elif query_type == "funny" or query_type == "hooks" or query_type == "malloy":
         queries = [
-            'ytsearch30:"malloy hooks" OR "viral video hook" #shorts',
+            'ytsearch30:"funny cat moments" OR "cat mischief" #shorts',
+            'ytsearch30:"funny dog guilty" OR "funny pet reactions" #shorts',
+            'ytsearch30:"cat chaos" OR "animals being derps" #shorts',
+            'ytsearch30:"instant regret funny" OR "people who got caught" #shorts',
             'ytsearch30:"wait for it" "unexpected ending" funny #shorts',
-            'ytsearch30:"instant regret" OR "people who got caught" #shorts',
-            'ytsearch30:"try not to laugh" "best fails" #shorts',
-            'ytsearch30:"bro thought" funny fails #shorts',
-            'ytsearch30:"cartoon box" OR "funny animation" #shorts'
+            'ytsearch30:"try not to laugh" "epic animal fails" #shorts'
         ]
         search_query = random.choice(queries)
     elif query_type == "food":
