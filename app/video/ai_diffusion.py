@@ -4,9 +4,15 @@ import subprocess
 import edge_tts
 from gradio_client import Client, handle_file
 
+from dotenv import load_dotenv
+load_dotenv()
+
 SPACE_NAME = "Lightricks/ltx-video-distilled"
 
 def get_gradio_client():
+    token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_TOKEN")
+    if token and str(token).strip():
+        return Client(SPACE_NAME, token=str(token).strip())
     return Client(SPACE_NAME)
 
 def generate_ai_video_from_prompt(prompt: str, output_path: str, duration: int = 3) -> str:
