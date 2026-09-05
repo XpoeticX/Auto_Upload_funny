@@ -17,7 +17,7 @@ from app.video.thumbnail import generate_thumbnail
 from app.upload.youtube import upload_to_youtube
 from app.upload.facebook import upload_to_facebook
 from app.analytics.engine import fetch_and_update_metrics, run_meta_optimizer, get_active_profile, send_telegram_report, get_rlaf_ai_feedback
-from app.story.director import generate_viral_story_concept, render_story_video
+from app.story.director import generate_viral_story_concept, render_story_video, build_viral_yt_description, build_viral_fb_description
 
 def cleanup():
     print("Cleaning up temp folders...")
@@ -90,9 +90,8 @@ def main():
         yt_title = story_concept.get("yt_title", f"{story_concept.get('title')} 🐾😂 #shorts #viral")
         fb_title = story_concept.get("fb_title", f"Wait till the end! 😂 Tag someone who needs to see this!")
         yt_tags = story_concept.get("tags") or ["shorts", "viral", "animation", "comedy"]
-        yt_hashtags = " ".join([f"#{t}" for t in yt_tags[:5]])
-        yt_description = f"""{yt_title}\n\n💬 {fb_title}\n\n🔔 SUBSCRIBE to Daily Dose of Fun for daily laughs: https://www.youtube.com/@DailyDosOfFun-q2t\n📱 Follow on Facebook: https://www.facebook.com/profile.php?id=100077547189991\n\n{yt_hashtags}"""
-        fb_description = f"""{fb_title}\n\n📱 Follow Daily Dose of Fun for daily viral moments: https://www.facebook.com/profile.php?id=100077547189991\n🔔 YouTube: https://www.youtube.com/@DailyDosOfFun-q2t\n\n#reels #funnyreels #viral #animation #comedy"""
+        yt_description = build_viral_yt_description(story_concept)
+        fb_description = build_viral_fb_description(story_concept)
         
         thumb_path = os.path.join("data", "output", f"thumb_{story_id}.jpg")
         generate_thumbnail(rendered_short, thumb_path)

@@ -3,6 +3,7 @@ import json
 import time
 import subprocess
 import shutil
+import re
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 from google import genai
@@ -27,6 +28,7 @@ class ViralStoryScript(BaseModel):
     yt_title: str
     fb_title: str
     tags: List[str]
+    related_queries: Optional[List[str]] = None
 
 FALLBACK_CONCEPTS = [
     {
@@ -265,3 +267,81 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
         print(f"[STORY DIRECTOR] Successfully rendered 3-scene story: {output_path}")
         return output_path
     return None
+
+def build_viral_yt_description(story: Dict) -> str:
+    """
+    Builds a high-retention, YouTube SEO-optimized description modeled directly after
+    200M+ view reference channels (e.g. Manoranjan Tales):
+    - Top hashtag cluster
+    - All-ages audience & minor safety compliance notice
+    - Channel subscribe CTAs with links
+    - Semantic search keyword block for recommendation algorithm
+    - Trending hashtags & remix permission notice
+    """
+    yt_title = story.get("yt_title", "Funny AI Animation Short 😂 #shorts #viral")
+    char_name = story.get("character_name", "Funny Animal")
+    niche = story.get("niche", "Animal Comedy")
+    tags = story.get("tags", ["shorts", "animation", "funny", "viral", "comedy"])
+    
+    # 1. Header hashtags
+    tag_list = ["#shorts", "#ai", "#3danimation", "#funny", "#animation"]
+    for t in tags[:6]:
+        clean_t = re.sub(r'[^a-zA-Z0-9]', '', t)
+        if clean_t and f"#{clean_t}" not in tag_list:
+            tag_list.append(f"#{clean_t}")
+    header_tags = " ".join(tag_list[:6])
+    
+    # 2. Semantic search keywords for YouTube BERT/algorithm
+    queries = story.get("related_queries") or [
+        f"funny ai {char_name.lower()} animation",
+        f"3d {niche.lower()} story",
+        "ai funny animal shorts",
+        "mischievous animal short video",
+        "3d animation comedy",
+        "ai viral youtube shorts",
+        "cute funny moments",
+        "animated animal shorts for all ages"
+    ]
+    queries_str = "\n".join([f"• {q}" for q in queries])
+    
+    # 3. Trending hashtags
+    related_hashtags = " ".join([f"#{re.sub(r'[^a-zA-Z0-9]', '', t.title())}" for t in tags[:12]])
+    
+    desc = f"""{header_tags}
+
+{yt_title}
+
+Welcome to Daily Dose of Fun! We bring you top-notch 3D AI-animated animal comedy shorts suitable for all-age audiences who love lovable characters and hilarious adventures.
+
+👉 Don’t forget to like, share & subscribe for more funny animal shorts!
+✨ Subscribe for daily laughs: https://www.youtube.com/@DailyDosOfFun-q2t
+📱 Follow on Facebook: https://www.facebook.com/profile.php?id=100077547189991
+
+🔍 Related Topics & Search Queries:
+{queries_str}
+
+---
+🔥 Trending Hashtags:
+{related_hashtags} #allages #funny #viral #comedy
+
+⚠️ Disclaimer & YouTube Community Safety Notice:
+This video features 100% fictional AI-animated characters in a humorous slapstick scenario. It is created strictly for entertainment and is suitable for all ages. No real animals or minors were involved, harmed, or endangered in any way. This content strictly adheres to YouTube's Minor and Child Safety policies.
+© Daily Dose of Fun — All Rights Reserved. Feel free to remix this video directly from YouTube!"""
+    return desc.strip()
+
+def build_viral_fb_description(story: Dict) -> str:
+    """
+    Builds an engaging Facebook Reels caption formatted to trigger comments and shares.
+    """
+    fb_title = story.get("fb_title", "Wait till you see the end! 😂 Tag a friend!")
+    tags = story.get("tags", ["funny", "animation", "viral", "reels"])
+    hashtags = " ".join([f"#{re.sub(r'[^a-zA-Z0-9]', '', t.lower())}" for t in tags[:8]])
+    
+    desc = f"""{fb_title}
+
+💬 Which part was your favorite? Let us know in the comments! 👇
+👉 Follow Daily Dose of Fun for daily funny 3D animations: https://www.facebook.com/profile.php?id=100077547189991
+🔔 Subscribe on YouTube: https://www.youtube.com/@DailyDosOfFun-q2t
+
+{hashtags} #reels #funnyreels #viral #3danimation #comedy #animals"""
+    return desc.strip()
