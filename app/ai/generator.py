@@ -84,6 +84,54 @@ FALLBACK_DILEMMAS = [
         "yt_title": "Know Everyone's Thoughts vs Know Your Death Date? 🧠⏳ #shorts #mystery",
         "fb_title": "Which secret would you rather know? Tell us in the comments! 🔮👇",
         "tags": ["shorts", "wouldyourather", "mystery", "psychology", "viral", "challenge"]
+    },
+    {
+        "topic": "The Spicy Relationship Test",
+        "question": "WOULD YOU RATHER...",
+        "palette": "romance",
+        "option_a": {"text": "Know Partner's Secret Body Count", "emoji": "🤫", "percentage": 48},
+        "option_b": {"text": "Read Their Full Incognito Search History", "emoji": "📱", "percentage": 52},
+        "voiceover_script": "Would you rather know the exact number of people your partner has slept with, or read their entire private incognito search history? Be completely honest before the clock runs out!",
+        "comment_cta": "Which secret would destroy you more? Drop your answer below! 👇",
+        "yt_title": "Partner's Body Count vs Incognito History? 🤫📱 #shorts #dating",
+        "fb_title": "Be 100% honest: Which one are you looking at? 😂👇",
+        "tags": ["shorts", "wouldyourather", "dating", "romance", "relationship", "viral"]
+    },
+    {
+        "topic": "Dark Fantasy Immortality",
+        "question": "WOULD YOU RATHER...",
+        "palette": "gothic",
+        "option_a": {"text": "Immortal Vampire With Eternal Glamour", "emoji": "🧛‍♂️", "percentage": 64},
+        "option_b": {"text": "Shadow Werewolf With Godlike Strength", "emoji": "🐺", "percentage": 36},
+        "voiceover_script": "Would you rather become an immortal vampire with mind control and eternal youth, or a shadow werewolf with invincible godlike physical power? Choose your dark destiny now!",
+        "comment_cta": "Vampire or Werewolf? Pick your dark side below! 👇",
+        "yt_title": "Immortal Vampire vs Godlike Werewolf? 🧛‍♂️🐺 #shorts #darkfantasy",
+        "fb_title": "Which dark supernatural power are you taking? Tell us below! 🌑👇",
+        "tags": ["shorts", "wouldyourather", "darkfantasy", "vampire", "werewolf", "viral"]
+    },
+    {
+        "topic": "The Ultimate Public Humiliation",
+        "question": "WOULD YOU RATHER...",
+        "palette": "inferno",
+        "option_a": {"text": "Send Spicy Pic To Family Group Chat", "emoji": "📸", "percentage": 27},
+        "option_b": {"text": "Reply-All Insult To Your Entire Company", "emoji": "💼", "percentage": 73},
+        "voiceover_script": "Would you rather accidentally send your spiciest private photo to your entire family group chat, or reply-all an insult about your CEO to everyone in your company? Lock in your worst nightmare!",
+        "comment_cta": "Which extreme fail is ending your life faster? Comment below! 👇",
+        "yt_title": "Spicy Pic To Family vs Insult Boss To Entire Company? 📸💼 #shorts #fail",
+        "fb_title": "Which extreme mistake would make you move to another country? 😭👇",
+        "tags": ["shorts", "wouldyourather", "fail", "epicfail", "embarrassing", "viral"]
+    },
+    {
+        "topic": "True Love vs Infinite Fortune",
+        "question": "WOULD YOU RATHER...",
+        "palette": "romance",
+        "option_a": {"text": "Marry Your Perfect Soulmate Broke", "emoji": "💍", "percentage": 59},
+        "option_b": {"text": "$100,000,000 Cash But Stay Single Forever", "emoji": "💵", "percentage": 41},
+        "voiceover_script": "Would you rather marry your absolute true soulmate with zero dollars to your name, or take one hundred million dollars cash and be forbidden from ever dating again? Decide before the timer stops!",
+        "comment_cta": "Are you taking true love or the bag? Vote below! 👇",
+        "yt_title": "True Soulmate Broke vs $100M Cash Single Forever? 💍💵 #shorts #romance",
+        "fb_title": "Be honest: Are you choosing love or the 100 million? 🤑👇",
+        "tags": ["shorts", "wouldyourather", "love", "money", "romance", "viral"]
     }
 ]
 
@@ -134,15 +182,15 @@ def generate_ai_dilemmas(theme: str = "any", count: int = 1, rlaf_feedback: dict
     
     GOAL: MAXIMUM ORGANIC VIEWS, MAXIMUM WATCH TIME, MAXIMUM COMMENTS, AND MAXIMUM FOLLOWER GROWTH.
     CRITICAL MANDATE: NO RESTRICTIONS ON TOPIC. You are 100% free to explore ANY topic that captures human curiosity and triggers passionate debate:
+    - SPICY INTIMACY & DATING SECRETS: Bedroom tradeoffs, partner body count vs secret search history, crazy exes, red vs green flags, 10 years without intimacy vs 10 years without phone. (Keep provocative, flirty, and spicy, while staying PG-13 to ensure 100% YouTube & Meta community standards compliance).
+    - DEEP ROMANCE & SOULMATE TRADEOFFS: True love vs \$100M fortune, marrying a 10 with zero chemistry vs a 6 with mind-blowing connection, erasing heartbreak vs keeping painful memories.
+    - DARK FANTASY & SUPERNATURAL BARGAINS: Vampire immortality vs werewolf power, deals with shadow demons, eldritch artifacts, necromancy vs telepathy, forbidden dark magic.
+    - EXTREME PUBLIC FAILS & ULTIMATE EMBARRASSMENT: Accidental spicy texts to family vs insulting your CEO on reply-all, pants splitting in public vs getting caught singing in the shower.
     - Extreme wealth, billionaire dilemmas, and money traps
     - Crazy survival, apocalypse, and life-or-death scenarios
     - Insane superpowers, time travel, and sci-fi abilities
     - Absurd body modifications, weird physical curses, and funny glitches
     - Mind-bending psychological paradoxes and moral dilemmas
-    - Relatable relationship, dating, and partner dilemmas
-    - Gaming, futuristic AI, and cyber tech
-    - Dark humor, escape rooms, or crime-solving puzzles
-    - Everyday hilarious battles and controversial food/habit opinions
 
     {rlaf_guidance}
 
@@ -151,7 +199,7 @@ def generate_ai_dilemmas(theme: str = "any", count: int = 1, rlaf_feedback: dict
     CRITICAL RULES:
     1. The two options must be GENUINELY TOUGH to choose between (split should feel close, e.g. 52/48 or 65/35).
     2. Voiceover script must be natural, high-energy, fast-paced (under 60 words), and build suspense for a 3-second countdown.
-    3. Assign a vibrant visual palette for each dilemma from: ["classic", "cyberpunk", "toxic", "inferno", "royal"].
+    3. Assign a vibrant visual palette for each dilemma from: ["classic", "cyberpunk", "toxic", "inferno", "royal", "romance", "gothic"].
     4. Provide platform-tailored copy:
        - yt_title: high-curiosity question with emojis and #shorts #wouldyourather (under 70 chars).
        - fb_title: conversational engagement question provoking friend tags and comments (under 80 chars).
@@ -161,7 +209,7 @@ def generate_ai_dilemmas(theme: str = "any", count: int = 1, rlaf_feedback: dict
       {{
         "topic": "Short 3-4 word topic",
         "question": "WOULD YOU RATHER...",
-        "palette": "classic",
+        "palette": "romance",
         "option_a": {{
           "text": "Clear 3-6 word option A",
           "emoji": "🔥",
