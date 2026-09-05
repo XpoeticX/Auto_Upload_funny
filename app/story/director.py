@@ -331,17 +331,21 @@ This video features 100% fictional AI-animated characters in a humorous slapstic
 
 def build_viral_fb_description(story: Dict) -> str:
     """
-    Builds an engaging Facebook Reels caption formatted to trigger comments and shares.
+    Builds a high-retention Facebook Reels caption tailored strictly for Facebook's algorithm:
+    - Short & punchy: Under 120 chars so it doesn't get cut off by '...See More' on mobile.
+    - Zero external links: Prevents Facebook from downranking the Reel for linking to YouTube.
+    - High-comment trigger: Asks a direct question or prompt to ignite comment engagement.
+    - Clean, native Reels hashtag cluster.
     """
-    fb_title = story.get("fb_title", "Wait till you see the end! 😂 Tag a friend!")
-    tags = story.get("tags", ["funny", "animation", "viral", "reels"])
-    hashtags = " ".join([f"#{re.sub(r'[^a-zA-Z0-9]', '', t.lower())}" for t in tags[:8]])
+    fb_title = story.get("fb_title", "Wait till you see what happens! 😂 Tag a friend!")
+    tags = story.get("tags", ["funny", "animation", "viral", "comedy"])
+    
+    clean_tags = [f"#{re.sub(r'[^a-zA-Z0-9]', '', t.lower())}" for t in tags if t.lower() not in ["shorts", "ytshorts"]]
+    fb_tags = " ".join(clean_tags[:4])
     
     desc = f"""{fb_title}
 
-💬 Which part was your favorite? Let us know in the comments! 👇
-👉 Follow Daily Dose of Fun for daily funny 3D animations: https://www.facebook.com/profile.php?id=100077547189991
-🔔 Subscribe on YouTube: https://www.youtube.com/@DailyDosOfFun-q2t
+Rate this 1-10 in the comments! 😂👇 Tag a friend who needs a laugh!
 
-{hashtags} #reels #funnyreels #viral #3danimation #comedy #animals"""
+{fb_tags} #reels #funnyreels #viralreels #reelsfb #comedy"""
     return desc.strip()
