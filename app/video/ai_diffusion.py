@@ -9,44 +9,55 @@ load_dotenv()
 
 SPACE_NAME = "Lightricks/ltx-video-distilled"
 
-def get_gradio_client():
-    token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_TOKEN")
-    if token and str(token).strip():
-        return Client(SPACE_NAME, token=str(token).strip())
-    return Client(SPACE_NAME)
+def get_hf_token_pool() -> list:
+    raw = [
+        os.getenv("HF_TOKEN"),
+        os.getenv("HF_TOKEN_2"),
+        os.getenv("HF_TOKEN_3"),
+        os.getenv("HUGGINGFACE_TOKEN"),
+    ]
+    pool = [t.strip() for t in raw if t and t.strip() and t.strip() != "None"]
+    return pool or [None]
 
 def generate_ai_video_from_prompt(prompt: str, output_path: str, duration: int = 3) -> str:
     """
     Generates a 100% neural AI video clip from text using open cloud video diffusion ($0 cost).
+    Automatically rotates through available HF_TOKENs if one encounters a temporary ZeroGPU quota cooldown.
     """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    try:
-        client = get_gradio_client()
-        result = client.predict(
-            prompt=prompt,
-            negative_prompt="worst quality, inconsistent motion, blurry, jittery, distorted, static",
-            input_image_filepath=None,
-            input_video_filepath=None,
-            height_ui=704,
-            width_ui=512,
-            mode="text-to-video",
-            duration_ui=duration,
-            ui_frames_to_use=9,
-            seed_ui=42,
-            randomize_seed=True,
-            ui_guidance_scale=1,
-            improve_texture_flag=True,
-            api_name="/text_to_video"
-        )
-        temp_vid = result[0].get("video")
-        if temp_vid and os.path.exists(temp_vid):
-            import shutil
-            shutil.copy2(temp_vid, output_path)
-            return output_path
-        return None
-    except Exception as e:
-        print(f"[AI DIFFUSION] Error generating text-to-video: {e}")
-        return None
+    tokens = get_hf_token_pool()
+
+    for idx, token in enumerate(tokens):
+        try:
+            client = Client(SPACE_NAME, token=token) if token else Client(SPACE_NAME)
+            result = client.predict(
+                prompt=prompt,
+                negative_prompt="worst quality, inconsistent motion, blurry, jittery, distorted, static",
+                input_image_filepath=None,
+                input_video_filepath=None,
+                height_ui=704,
+                width_ui=512,
+                mode="text-to-video",
+                duration_ui=duration,
+                ui_frames_to_use=9,
+                seed_ui=42,
+                randomize_seed=True,
+                ui_guidance_scale=1,
+                improve_texture_flag=True,
+                api_name="/text_to_video"
+            )
+            temp_vid = result[0].get("video")
+            if temp_vid and os.path.exists(temp_vid):
+                import shutil
+                shutil.copy2(temp_vid, output_path)
+                return output_path
+        except Exception as e:
+            err_str = str(e)
+            print(f"[AI DIFFUSION] Notice with token #{idx+1}: {err_str[:120]}")
+            if "ZeroGPU quota" in err_str and idx < len(tokens) - 1:
+                print(f"[AI DIFFUSION] Token #{idx+1} hit cooldown. Rotating to Token #{idx+2}...")
+                continue
+    return None
 
 def animate_image_to_video(image_path: str, prompt: str, output_path: str, duration: int = 3) -> str:
     """

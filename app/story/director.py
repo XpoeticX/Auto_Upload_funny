@@ -321,14 +321,15 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
         vid_path = generate_ai_video_from_prompt(p, sc_out, duration=3)
         if not vid_path or not os.path.exists(vid_path):
             print(f"[STORY DIRECTOR] Warning: Scene {num} generation issue. Retrying with fallback...")
-            # Fallback to existing valid neural scenes if available
+            # Fallback to permanent neural motion assets if available
             fallback_map = {
-                1: "data/output/real_ai_cat_chef.mp4",
-                2: "data/temp/scene2_real_motion.mp4",
-                3: "data/temp/scene3_real_motion.mp4"
+                1: os.path.join("data", "assets", "motion_fallback", "scene1.mp4"),
+                2: os.path.join("data", "assets", "motion_fallback", "scene2.mp4"),
+                3: os.path.join("data", "assets", "motion_fallback", "scene3.mp4")
             }
             fb_path = fallback_map.get(num)
             if fb_path and os.path.exists(fb_path):
+                print(f"[STORY DIRECTOR] Using motion fallback asset for Scene {num}: {fb_path}")
                 shutil.copy2(fb_path, sc_out)
                 vid_path = sc_out
             else:
