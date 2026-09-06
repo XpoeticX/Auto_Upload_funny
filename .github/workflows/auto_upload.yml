@@ -45,6 +45,8 @@ jobs:
         FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
         FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        HF_TOKEN_2: ${{ secrets.HF_TOKEN_2 }}
+        HF_TOKEN_3: ${{ secrets.HF_TOKEN_3 }}
         YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
