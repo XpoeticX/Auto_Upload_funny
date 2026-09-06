@@ -32,6 +32,138 @@ class ViralStoryScript(BaseModel):
 
 FALLBACK_CONCEPTS = [
     {
+        "title": "Shark Chef's Sneaker Recipe",
+        "niche": "Surreal Animal Comedy",
+        "character_name": "Chef Jaws",
+        "character_description": "Muscular anthropomorphic shark wearing a chef apron in a luxury kitchen, hyper-detailed 3d pixar CGI, vivid cinematic lighting",
+        "scenes": [
+            {
+                "scene_number": 1,
+                "act_name": "Setup / Hook",
+                "visual_prompt": "Muscular shark wearing chef apron intently slicing a colorful Nike running sneaker on a wooden cutting board with a sharp cleaver, kitchen counter, 3d pixar animation, cinematic lighting",
+                "foley_sound_type": "knife_chop",
+                "foley_description": "Rapid wooden cutting board knife chops"
+            },
+            {
+                "scene_number": 2,
+                "act_name": "Conflict / Chaos",
+                "visual_prompt": "Shark chef tossing sliced sneaker pieces into a fiery sizzling wok, flames shooting up, steam billowing, focused intense shark eyes, 3d animation",
+                "foley_sound_type": "sizzle",
+                "foley_description": "Hot sizzling wok frying flames"
+            },
+            {
+                "scene_number": 3,
+                "act_name": "Payoff / Punchline",
+                "visual_prompt": "Shark chef proudly presenting gourmet cooked shoe on white ceramic plate with ketchup drizzle and parsley garnish, smiling with sharp teeth, 3d pixar style",
+                "foley_sound_type": "ding",
+                "foley_description": "Triumph presentation bell ding"
+            }
+        ],
+        "music_vibe": "bouncy_comedy",
+        "yt_title": "Who Let The Shark In The Kitchen?! 🦈👟 #shorts #viral #funny",
+        "fb_title": "His cooking skills are 10/10 but the recipe is questionable! 😂🦈 Tag a friend who would eat this!",
+        "tags": ["shorts", "shark", "animation", "3danimation", "food", "viral", "comedy", "funny"]
+    },
+    {
+        "title": "Baby & The Dancing Mini Cow",
+        "niche": "Cute Baby & Animal Adventure",
+        "character_name": "Baby Leo & Daisy the Cow",
+        "character_description": "Chubby laughing cute baby in diaper riding a tiny spotted miniature dairy cow, 3d pixar animation style, soft warm sunlit garden",
+        "scenes": [
+            {
+                "scene_number": 1,
+                "act_name": "Setup / Hook",
+                "visual_prompt": "Adorable chubby baby wearing a diaper riding on the back of a tiny cute spotted mini dairy cow walking down a lush green flower path, warm golden sunlight, 3d pixar animation",
+                "foley_sound_type": "whoosh",
+                "foley_description": "Gentle playful footsteps and happy sound"
+            },
+            {
+                "scene_number": 2,
+                "act_name": "Conflict / Chaos",
+                "visual_prompt": "Mini dairy cow starts spinning and doing a tap dance on its hind legs while chubby baby holds on giggling with joy, vibrant flower petals flying, 3d pixar style",
+                "foley_sound_type": "boing",
+                "foley_description": "Springy dance bounces and happy giggle"
+            },
+            {
+                "scene_number": 3,
+                "act_name": "Payoff / Punchline",
+                "visual_prompt": "Baby and mini cow wearing matching tiny sunglasses high-fiving each other with big joyful smiles under blooming apple tree, 3d pixar animation",
+                "foley_sound_type": "ding",
+                "foley_description": "Achievement bell chime"
+            }
+        ],
+        "music_vibe": "bouncy_comedy",
+        "yt_title": "The Cutest Duo In History! 👶🐮❤️ #shorts #viral #cutebaby",
+        "fb_title": "I cannot stop smiling at this! 😭🐮 Tag someone who needs cuteness today! 👇",
+        "tags": ["shorts", "cutebaby", "cow", "animation", "3danimation", "viral", "cute"]
+    },
+    {
+        "title": "The Cockroach Family Dinner",
+        "niche": "Role Reversal / Ulti Duniya",
+        "character_name": "Papa Cockroach",
+        "character_description": "Anthropomorphic cartoon cockroach family wearing striped pajamas sitting around a dining table in a dollhouse, 3d pixar style",
+        "scenes": [
+            {
+                "scene_number": 1,
+                "act_name": "Setup / Hook",
+                "visual_prompt": "Cartoon cockroach family in colorful pajamas sitting around tiny dining table holding miniature forks, eating tiny slice of pie, warm cozy lighting, 3d pixar animation",
+                "foley_sound_type": "whoosh",
+                "foley_description": "Tiny fork clinks and gentle chatter"
+            },
+            {
+                "scene_number": 2,
+                "act_name": "Conflict / Chaos",
+                "visual_prompt": "Baby cockroach accidentally drops pie crumb, whole cockroach family gasps dramatically and hugs each other in tears, exaggerated emotional cartoon faces, 3d pixar",
+                "foley_sound_type": "bonk",
+                "foley_description": "Dramatic cartoon gasp and sniffle"
+            },
+            {
+                "scene_number": 3,
+                "act_name": "Payoff / Punchline",
+                "visual_prompt": "Giant cartoon human slipper taps on the window glass, all cockroaches instantly freeze in hilarious panicked statues, eyes wide open, 3d animation",
+                "foley_sound_type": "ding",
+                "foley_description": "Freeze frame comedy ding"
+            }
+        ],
+        "music_vibe": "bouncy_comedy",
+        "yt_title": "Inside A Cockroach's Emotional Dinner 😂🪳 #shorts #viral #animation",
+        "fb_title": "When you realize cockroaches have family drama too! 😂🪳 Tag a friend who hates bugs!",
+        "tags": ["shorts", "ultiduniya", "animation", "3danimation", "comedy", "viral", "funny"]
+    },
+    {
+        "title": "Princess Tomato's Kitchen Escape",
+        "niche": "Living Food & Objects",
+        "character_name": "Princess Tomato",
+        "character_description": "Giant glossy cute red tomato with big sparkling anime Pixar eyes, rosy blushing cheeks, wearing a red ribbon bow, 3d pixar animation",
+        "scenes": [
+            {
+                "scene_number": 1,
+                "act_name": "Setup / Hook",
+                "visual_prompt": "Giant cute glossy red tomato with huge sparkling anime eyes and tiny cute smile, wearing a red hairbow, blinking cutely on marble kitchen counter, 3d pixar animation",
+                "foley_sound_type": "boing",
+                "foley_description": "Cute squeaky blink sound"
+            },
+            {
+                "scene_number": 2,
+                "act_name": "Conflict / Chaos",
+                "visual_prompt": "Shadow of a chef holding a knife looms over the counter, cute tomato gasps with round shocked mouth and rolls frantically behind a flour bag, 3d pixar animation",
+                "foley_sound_type": "whoosh",
+                "foley_description": "Fast rolling whoosh and flour puff"
+            },
+            {
+                "scene_number": 3,
+                "act_name": "Payoff / Punchline",
+                "visual_prompt": "Cute tomato pops out from behind flour bag wearing black sunglasses and making a tiny peace sign with her stem leaf, smiling cheekily, 3d pixar style",
+                "foley_sound_type": "ding",
+                "foley_description": "Cool reveal chime"
+            }
+        ],
+        "music_vibe": "bouncy_comedy",
+        "yt_title": "Do NOT Slice The Princess! 🍅🎀😂 #shorts #viral #animation",
+        "fb_title": "She was NOT going to become ketchup today! 😎🍅 Tag someone who loves cute things!",
+        "tags": ["shorts", "tomato", "cute", "animation", "3danimation", "viral", "comedy"]
+    },
+    {
         "title": "Chef Leo's Crispy Chicken",
         "niche": "Cat Comedy",
         "character_name": "Chef Leo",
@@ -63,46 +195,13 @@ FALLBACK_CONCEPTS = [
         "yt_title": "Chef Leo Cooks A Masterpiece! 🍗🐾 #shorts #viral #funnycats",
         "fb_title": "He took his cooking shift WAY too seriously! 😂🍗 Tag someone who loves fried chicken!",
         "tags": ["shorts", "funnycats", "animation", "3danimation", "food", "viral", "comedy"]
-    },
-    {
-        "title": "The Cat & The Little Duckling",
-        "niche": "Animal Duo",
-        "character_name": "Boss Leo & Duckie",
-        "character_description": "Fat orange cat with gold chain and tiny cute yellow duckling, 3d cartoon animation",
-        "scenes": [
-            {
-                "scene_number": 1,
-                "act_name": "Setup",
-                "visual_prompt": "Fat orange cat wearing gold chain walking through meadow holding wooden stick alongside tiny cute baby duck, cartoon 3d",
-                "foley_sound_type": "footsteps",
-                "foley_description": "Playful cartoon footsteps and happy quack"
-            },
-            {
-                "scene_number": 2,
-                "act_name": "Conflict",
-                "visual_prompt": "Orange cat heroically swinging wooden stick in kung fu stance to protect baby duck, dynamic action camera, cartoon 3d",
-                "foley_sound_type": "whoosh",
-                "foley_description": "Dramatic stick whoosh and cartoon bonk"
-            },
-            {
-                "scene_number": 3,
-                "act_name": "Payoff",
-                "visual_prompt": "Orange cat wearing dark sunglasses driving a mini motorcycle with baby duck in front basket, speeding down road, cartoon 3d",
-                "foley_sound_type": "motorcycle",
-                "foley_description": "Motorcycle engine rev and cool beat drop"
-            }
-        ],
-        "music_vibe": "triumphant",
-        "yt_title": "The Most Badass Duo In History! 🐱🦆😎 #shorts #viral #animation",
-        "fb_title": "Nobody messes with his little bro! 😎🏍️ Tag your best friend!",
-        "tags": ["shorts", "funny", "cat", "duck", "3danimation", "viral", "friendship"]
     }
 ]
 
 def generate_viral_story_concept(rlaf_feedback: Optional[Dict] = None) -> Dict:
     """
-    Uses Gemini to autonomously brainstorm and plan a 3-act viral AI short story
-    based on real audience feedback, high-performing topics, and watch time signals.
+    Uses Gemini / Qwen-72B to autonomously brainstorm ultra-viral surrealist AI animated short stories
+    (inspired by 10M-80M view trends: Shark chefs, Ulti Duniya cockroach families, Baby & animal duos, Living food).
     """
     api_keys = [
         os.environ.get("GEMINI_API_KEY"),
@@ -111,30 +210,40 @@ def generate_viral_story_concept(rlaf_feedback: Optional[Dict] = None) -> Dict:
     ]
     api_keys = [k for k in api_keys if k and str(k).strip() != "None"]
 
+    from app.story.trend_radar import get_global_viral_intelligence
+    global_intel = get_global_viral_intelligence()
+    market_context = global_intel.get("market_summary", "")
+
     feedback_context = ""
     if rlaf_feedback:
         summary = rlaf_feedback.get("summary", "")
         top_cats = rlaf_feedback.get("top_categories", [])
-        feedback_context = f"\nPerformance Feedback from previous uploads:\n- Summary: {summary}\n- Top Performing Categories: {top_cats}\nUse this feedback to double down on what gets highest views!"
+        if summary or top_cats:
+            feedback_context = f"\nChannel Specific Feedback:\n- Summary: {summary}\n- Top Performing on Your Channel: {top_cats}"
 
-    prompt = f"""You are the Executive Creative Director for viral AI animated YouTube Shorts and Facebook Reels (like Manoranjan Tales with 200M+ views).
-Your goal is to design a high-retention 3-Act Mini-Story (8 to 10 seconds total) that has:
-1. Universal visual humor (ZERO spoken voiceover / dialogue).
-2. Exactly 3 interconnected visual scenes:
-   - Act 1 (Setup / Hook: 0s-3s): Introduce adorable or absurd character situation.
-   - Act 2 (Conflict / Chaos: 3s-6s): A sudden mistake, intense effort, near-disaster, or action.
-   - Act 3 (Payoff / Punchline: 6s-9s): A hilarious twist, triumphant boss moment, or funny fail resolution.
-3. Character consistency across all 3 scenes.
-4. Specific Foley sound effect requirements for each scene (e.g. knife chops, sizzle, crunch, whoosh, engine rev, meow).
+    prompt = f"""You are the Executive Creative Director for viral AI animated YouTube Shorts and Facebook Reels (producing 10M to 80M+ view hits).
+Your mission is to look at GLOBAL TRENDING MARKET DATA (what is getting 10M-80M views right now across YouTube Shorts) combined with channel audience feedback to design the ultimate high-retention Short:
 
-Explore across high-retention genres:
-- Cute animal comedy (cats, dogs, ducklings, hamsters)
-- Food & Cooking ASMR disasters
-- Unlikely animal friendships
-- Epic slapstick fails & instant regret
-- Heroic boss moments with sunglasses & cool phonk/bouncy beats
+=== 1. CURRENT GLOBAL VIRAL MARKET INTELLIGENCE ===
+{market_context}
 
-{feedback_context}
+=== 2. CHANNEL AUDIENCE DATA ===
+{feedback_context or "Channel is in growth phase. Prioritize the high-velocity Global Trends above!"}
+
+=== 3. MANDATORY CREATIVE DIRECTIVES ===
+1. Universal visual humor & shock / awe / WTF hook (ZERO spoken voiceover / dialogue).
+2. Model after the highest-velocity global formats:
+   - Surreal Anthropomorphic (e.g., Muscular Shark chef slicing a sneaker in a kitchen, Crocodile dentist)
+   - Adorable Baby & Animal Companions (e.g., Chubby cute baby riding a mini cow in a garden, Baby on giant pelican)
+   - Living Cartoon Food & Objects with huge expressive Pixar eyes (e.g., Giant glossy red tomato with a hairbow blinking)
+   - "Ulti Duniya" / Absurd Role Reversal (e.g., Cockroach family in pajamas having an emotional dinner)
+   - Animal Slapstick / Food ASMR (e.g., Cat chef chopping chicken, Hamster bakery escape)
+3. Exactly 3 interconnected visual scenes with character consistency:
+   - Act 1 (Hook / The Absurd Situation: 0s-3s): Introduce the shocking or adorable character.
+   - Act 2 (Chaos / The Impossible Action: 3s-6s): The intense action, cooking flames, slip, fail, or wild motion.
+   - Act 3 (Payoff / Punchline: 6s-9s): The hilarious twist, triumphant boss moment, or cute celebration.
+4. Style: Always describe as "hyper-detailed 3d pixar animation style, cinematic lighting, expressive facial features, 8k resolution, vivid colors".
+5. Specific Foley sound effect requirements for each scene (choose from: whoosh, bonk, quack, bark, crunch, meow, sizzle, boing, knife_chop, ding).
 
 Return valid JSON conforming strictly to the ViralStoryScript schema.
 """
