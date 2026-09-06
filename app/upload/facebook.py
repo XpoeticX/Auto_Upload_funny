@@ -1,6 +1,23 @@
 import os
 import requests
 
+def get_effective_page_token(token: str, page_id: str) -> str:
+    """
+    Ensures we use the Page-level access token.
+    If token is a System User token, auto-resolves the specific Page token from /me/accounts.
+    """
+    if not token or not page_id:
+        return token
+    try:
+        r = requests.get(f"https://graph.facebook.com/v19.0/me/accounts?access_token={token}", timeout=10)
+        if r.status_code == 200:
+            for acc in r.json().get("data", []):
+                if str(acc.get("id")) == str(page_id):
+                    return acc.get("access_token", token)
+    except Exception as e:
+        print(f"[FACEBOOK] Notice resolving Page token: {e}")
+    return token
+
 def upload_to_facebook(video_path: str, title: str, description: str, is_compilation: bool = False, thumbnail_path: str = None):
     fb_token = os.environ.get("FB_ACCESS_TOKEN")
     page_id = os.environ.get("FB_PAGE_ID")
@@ -9,6 +26,7 @@ def upload_to_facebook(video_path: str, title: str, description: str, is_compila
         print("Facebook credentials missing.")
         return False
         
+    fb_token = get_effective_page_token(fb_token, page_id)
     print(f"Uploading {video_path} to Facebook...")
     
     try:
