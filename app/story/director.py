@@ -143,7 +143,7 @@ Return valid JSON conforming strictly to the ViralStoryScript schema.
         try:
             client = genai.Client(api_key=k)
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-2.0-flash",
                 contents=prompt,
                 config={
                     "response_mime_type": "application/json",
