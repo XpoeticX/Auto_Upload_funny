@@ -76,8 +76,8 @@ def main():
         log_video_analytics(
             video_id=story_id,
             title=yt_title,
-            category=story_concept.get("niche", "AI_Animation"),
-            hook_style="AI_Story_3Act",
+            category=short_category,  # Must match the category used in send_telegram_report & run_meta_optimizer
+            hook_style="AI_Story_5Act",
             yt_id=str(yt_res) if yt_res and str(yt_res) != "True" else None,
             fb_id=str(fb_res) if fb_res and str(fb_res) != "True" else None
         )
@@ -91,7 +91,7 @@ def main():
             "short_title": uploaded_short_title or "Upload Failed",
             "comp_title": "100% AI Animation Mode (No text dilemmas)"
         }
-        send_telegram_report(primary_mood, yt_short_profile, fb_profile=fb_short_profile, upload_summary=upload_summary)
+        send_telegram_report(short_category, yt_short_profile, fb_profile=fb_short_profile, upload_summary=upload_summary)
     except Exception as e:
         print(f"Telegram report notification notice: {e}")
 

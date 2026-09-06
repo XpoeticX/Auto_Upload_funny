@@ -241,15 +241,16 @@ def fetch_and_update_metrics() -> None:
         fb_reward = calculate_facebook_reward(fb_views, fb_shares, fb_comments, fb_likes, recorded_at_str=recorded_at)
         combined_score = round(yt_reward + fb_reward, 2)
 
-        updates = {
-            "yt_views": yt_views,
-            "yt_likes": yt_likes,
-            "yt_comments": yt_comments,
-            "fb_views": fb_views,
-            "fb_shares": fb_shares,
-            "fb_comments": fb_comments,
-            "viral_score": combined_score
-        }
+        # Only update metrics we actually fetched — never overwrite real data with zeros
+        updates = {"viral_score": combined_score}
+        if yt_id and yt_id in yt_stats_map:
+            updates["yt_views"] = yt_views
+            updates["yt_likes"] = yt_likes
+            updates["yt_comments"] = yt_comments
+        if fb_id and fb_token and (fb_views > 0 or fb_likes > 0 or fb_shares > 0 or fb_comments > 0):
+            updates["fb_views"] = fb_views
+            updates["fb_shares"] = fb_shares
+            updates["fb_comments"] = fb_comments
         update_video_metrics(video_id, updates)
 
     print("Decoupled platform performance ledgers updated successfully.")
@@ -647,6 +648,9 @@ def send_telegram_report(category: str, yt_profile: dict, fb_profile: dict = Non
     try:
         tracked_videos = get_tracked_videos_for_analytics(limit=50)
         cat_videos = [v for v in tracked_videos if v.get("category") == category] if tracked_videos else []
+        # Fallback: if no videos match the exact category, use ALL tracked videos
+        if not cat_videos and tracked_videos:
+            cat_videos = tracked_videos
         if cat_videos:
             yt_views_total = sum(v.get("yt_views", 0) for v in cat_videos)
             yt_likes_total = sum(v.get("yt_likes", 0) for v in cat_videos)
