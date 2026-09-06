@@ -1,5 +1,8 @@
 import os
+from dotenv import load_dotenv
 from supabase import create_client, Client
+
+load_dotenv()
 
 # We will initialize this gracefully so local testing without Supabase doesn't instantly crash
 supabase: Client = None

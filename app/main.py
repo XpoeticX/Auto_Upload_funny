@@ -1,7 +1,10 @@
 import os
 import shutil
 import datetime
+from dotenv import load_dotenv
 import ffmpeg
+
+load_dotenv()
 from app.database import init_db, mark_video_used, is_video_used, log_video_analytics
 from app.video.thumbnail import generate_thumbnail
 from app.upload.youtube import upload_to_youtube
