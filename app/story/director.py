@@ -316,6 +316,7 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
         return None
 
     rendered_scene_vids = []
+    used_motion_fallback = False
 
     for sc in scenes:
         num = sc.get("scene_number", 1)
@@ -337,6 +338,7 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
                 print(f"[STORY DIRECTOR] Using motion fallback asset for Scene {num}: {fb_path}")
                 shutil.copy2(fb_path, sc_out)
                 vid_path = sc_out
+                used_motion_fallback = True
             else:
                 return None
 
@@ -348,6 +350,45 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
             "-t", "2.8" if num < 3 else "3.0", "-r", "30", "-c:v", "libx264", "-pix_fmt", "yuv420p", sc_fmt
         ], check=True)
         rendered_scene_vids.append(sc_fmt)
+
+    # If fallback pack was used, align story metadata and audio timeline 200% with the footage
+    if used_motion_fallback:
+        print("[STORY DIRECTOR] Fallback motion used. Synchronizing story metadata & audio cues 100% with footage...")
+        story.update({
+            "title": "Hamster Hero: The Great Cheese Heist",
+            "character_name": "Chester the Hamster",
+            "niche": "Animal ASMR & Slapstick Regret",
+            "music_vibe": "bouncy_comedy",
+            "scenes": [
+                {
+                    "scene_number": 1,
+                    "act_name": "Hook -> Conflict",
+                    "visual_prompt": "Chester the hamster speeding in his green toy car",
+                    "foley_sound_type": "car_horn",
+                    "foley_description": "Cheerful cartoon car horn honk honk",
+                    "impact_offset": 1.0
+                },
+                {
+                    "scene_number": 2,
+                    "act_name": "The Comeback",
+                    "visual_prompt": "Chester drifts around corner with sudden skid",
+                    "foley_sound_type": "tire_screech",
+                    "foley_description": "Sharp cartoon drift tire screech",
+                    "impact_offset": 4.0
+                },
+                {
+                    "scene_number": 3,
+                    "act_name": "Climax Payoff",
+                    "visual_prompt": "Chester triumphantly lifts golden cheese",
+                    "foley_sound_type": "ding",
+                    "foley_description": "Triumphant achievement golden bell ding",
+                    "impact_offset": 6.8
+                }
+            ],
+            "yt_title": "Hamster Hero: The Great Cheese Heist! 🐹🧀 #shorts #viral #animation",
+            "fb_title": "He really thought he could steal the cheese and drive away! 😂🧀 Tag a friend!",
+            "tags": ["shorts", "hamster", "animation", "3danimation", "comedy", "viral", "funny"]
+        })
 
     # Concatenate video scenes
     concat_txt = "data/temp/director_concat.txt"
@@ -361,7 +402,7 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
         "-c:v", "libx264", "-pix_fmt", "yuv420p", visual_only
     ], check=True)
 
-    # Dynamic Foley & Music Generation tailored to this specific story
+    # Dynamic Foley & Music Generation tailored 200% to this specific story and motion
     master_audio = os.path.join("data", "temp", "story_master_audio.wav")
     total_dur = 2.8 * (len(scenes) - 1) + 3.0
     build_scene_audio_timeline(story, total_duration=total_dur, output_wav=master_audio)

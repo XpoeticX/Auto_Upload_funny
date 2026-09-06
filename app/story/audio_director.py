@@ -60,6 +60,15 @@ SOUND_ALIASES = {
     "bounce": "boing.mp3",
     "jump": "boing.mp3",
     "squeak": "boing.mp3",
+    "horn": "car_horn.mp3",
+    "honk": "car_horn.mp3",
+    "car": "car_horn.mp3",
+    "beep": "car_horn.mp3",
+    "drive": "tire_screech.mp3",
+    "skid": "tire_screech.mp3",
+    "tire": "tire_screech.mp3",
+    "screech": "tire_screech.mp3",
+    "drift": "tire_screech.mp3",
 }
 
 def generate_synthetic_fallback(out_path: str, duration: float = 1.5, freq: int = 500) -> str:
@@ -179,11 +188,11 @@ def build_scene_audio_timeline(story: Dict, total_duration: float = 8.6, output_
     # Background music energetic bed (full energy, continuous comedy rhythm)
     filter_parts.append(f"[0:a]volume=0.75,atrim=0:{total_duration},asetpts=PTS-STARTPTS[bgm]")
 
-    # Scene timing partitions:
-    # Scene 1: 0.0s -> 2.8s
-    # Scene 2: 2.8s -> 5.6s
-    # Scene 3: 5.6s -> 8.6s
-    scene_offsets = [0.3, 3.2, 6.0]
+    # Scene timing partitions aligned to the Conflict Arc action climax:
+    # Scene 1: 0.0s -> 2.8s (Visual Action Climax: 1.2s)
+    # Scene 2: 2.8s -> 5.6s (Visual Action Climax: 4.0s)
+    # Scene 3: 5.6s -> 8.6s (Visual Action Climax: 6.8s)
+    default_offsets = [1.2, 4.0, 6.8]
 
     input_idx = 1
     for i, sc in enumerate(scenes[:3]):
@@ -191,7 +200,8 @@ def build_scene_audio_timeline(story: Dict, total_duration: float = 8.6, output_
         sfx_path = resolve_foley_sound(sound_type)
         inputs.extend(["-i", sfx_path])
 
-        delay_ms = int(scene_offsets[i] * 1000)
+        offset_sec = sc.get("impact_offset", default_offsets[i])
+        delay_ms = int(offset_sec * 1000)
         dur = 2.4 if i < 2 else 2.6
         label = f"sfx{i+1}"
         filter_parts.append(
@@ -204,7 +214,7 @@ def build_scene_audio_timeline(story: Dict, total_duration: float = 8.6, output_
         if i == 2:
             ding_path = resolve_foley_sound("ding")
             inputs.extend(["-i", ding_path])
-            ding_delay = int((total_duration - 1.0) * 1000)
+            ding_delay = int((total_duration - 0.8) * 1000)
             filter_parts.append(
                 f"[{input_idx}:a]volume=2.2,atrim=0:1.5,asetpts=PTS-STARTPTS,adelay={ding_delay}|{ding_delay}[ding_finish]"
             )
