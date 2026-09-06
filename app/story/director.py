@@ -32,6 +32,48 @@ class ViralStoryScript(BaseModel):
 
 FALLBACK_CONCEPTS = [
     {
+        "title": "Hamster Chef & The Anti-Gravity Golden Egg",
+        "niche": "Animal Slapstick & Food Magic",
+        "character_name": "Chester the Hamster Chef",
+        "character_description": "Chubby adorable hamster chef wearing a tiny white toque chef hat in a modern sunlit kitchen, hyper-detailed 3d pixar animation style, fluffy fur, sparkling eyes",
+        "scenes": [
+            {
+                "scene_number": 1,
+                "act_name": "Hook -> Conflict",
+                "visual_prompt": "Cute chubby hamster chef curiously inspects glowing golden egg on counter, egg suddenly levitates and triggers zero-gravity kitchen chaos with flying pots and flour, 3d pixar animation",
+                "foley_sound_type": "clatter_thump",
+                "foley_description": "Curious whoosh, mysterious rising hum, and violent zero-gravity kitchen clatter crash"
+            },
+            {
+                "scene_number": 2,
+                "act_name": "The Comeback",
+                "visual_prompt": "Hamster chef slams paw on red A-GRAV REVERSE wall button, gravity violently restores, hamster whips out wire mesh strainer net ready to catch, 3d pixar style",
+                "foley_sound_type": "mechanical_click",
+                "foley_description": "Heavy mechanical button click, reverse gravity boing, and swift net whoosh"
+            },
+            {
+                "scene_number": 3,
+                "act_name": "Climax Payoff",
+                "visual_prompt": "Golden egg lands cleanly into wire strainer net surrounded by magical glowing orbital rings, chubby hamster chef beams with proud rosy cheeks and winks at camera, 3d pixar",
+                "foley_sound_type": "ding_high_confirm",
+                "foley_description": "Crystal golden chime ding and celebratory victory flourish"
+            }
+        ],
+        "audio_cues": [
+            {"sound": "whoosh", "offset": 0.2, "volume": 2.2, "duration": 0.8},
+            {"sound": "rising_hum", "offset": 0.7, "volume": 2.8, "duration": 1.0},
+            {"sound": "clatter_thump", "offset": 1.5, "volume": 2.5, "duration": 1.6},
+            {"sound": "mechanical_click", "offset": 3.4, "volume": 3.0, "duration": 0.6},
+            {"sound": "boing", "offset": 3.9, "volume": 2.2, "duration": 1.0},
+            {"sound": "whoosh", "offset": 4.5, "volume": 2.2, "duration": 0.8},
+            {"sound": "ding_high_confirm", "offset": 6.6, "volume": 2.8, "duration": 1.8}
+        ],
+        "music_vibe": "bouncy_comedy",
+        "yt_title": "Hamster Chef vs The Anti-Gravity Golden Egg! 🐹🥚✨ #shorts #animation #viral #funny",
+        "fb_title": "He was NOT expecting the egg to do THAT! 😱🍳 Look at his reaction at the end! 😂 Tag a friend!",
+        "tags": ["shorts", "hamster", "animation", "3danimation", "pixar", "comedy", "viral", "funny", "goldenegg"]
+    },
+    {
         "title": "Shark Chef's Sneaker Recipe",
         "niche": "Surreal Animal Comedy",
         "character_name": "Chef Jaws",
@@ -353,41 +395,50 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
 
     # If fallback pack was used, align story metadata and audio timeline 200% with the footage
     if used_motion_fallback:
-        print("[STORY DIRECTOR] Fallback motion used. Synchronizing story metadata & audio cues 100% with footage...")
+        print("[STORY DIRECTOR] Fallback motion used. Synchronizing story metadata & audio cues 100% with Golden Egg footage...")
         story.update({
-            "title": "Hamster Hero: The Great Cheese Heist",
-            "character_name": "Chester the Hamster",
-            "niche": "Animal ASMR & Slapstick Regret",
+            "title": "Hamster Chef & The Anti-Gravity Golden Egg",
+            "character_name": "Chester the Hamster Chef",
+            "niche": "Animal Slapstick & Food Magic",
             "music_vibe": "bouncy_comedy",
             "scenes": [
                 {
                     "scene_number": 1,
                     "act_name": "Hook -> Conflict",
-                    "visual_prompt": "Chester the hamster speeding in his green toy car",
-                    "foley_sound_type": "car_horn",
-                    "foley_description": "Cheerful cartoon car horn honk honk",
-                    "impact_offset": 1.0
+                    "visual_prompt": "Cute chubby hamster chef curiously inspects glowing golden egg on counter, triggering zero-gravity kitchen chaos",
+                    "foley_sound_type": "clatter_thump",
+                    "foley_description": "Whoosh, levitation hum, and zero-G kitchen pans crashing",
+                    "impact_offset": 1.5
                 },
                 {
                     "scene_number": 2,
                     "act_name": "The Comeback",
-                    "visual_prompt": "Chester drifts around corner with sudden skid",
-                    "foley_sound_type": "tire_screech",
-                    "foley_description": "Sharp cartoon drift tire screech",
-                    "impact_offset": 4.0
+                    "visual_prompt": "Hamster chef slams red A-GRAV REVERSE wall button and positions strainer net to catch",
+                    "foley_sound_type": "mechanical_click",
+                    "foley_description": "Mechanical button click, boing shockwave, and net catch whoosh",
+                    "impact_offset": 3.4
                 },
                 {
                     "scene_number": 3,
                     "act_name": "Climax Payoff",
-                    "visual_prompt": "Chester triumphantly lifts golden cheese",
-                    "foley_sound_type": "ding",
-                    "foley_description": "Triumphant achievement golden bell ding",
-                    "impact_offset": 6.8
+                    "visual_prompt": "Golden egg caught cleanly in strainer with glowing halo, hamster beams proudly with rosy cheeks",
+                    "foley_sound_type": "ding_high_confirm",
+                    "foley_description": "Triumphant golden chime ding and victory celebration",
+                    "impact_offset": 6.6
                 }
             ],
-            "yt_title": "Hamster Hero: The Great Cheese Heist! 🐹🧀 #shorts #viral #animation",
-            "fb_title": "He really thought he could steal the cheese and drive away! 😂🧀 Tag a friend!",
-            "tags": ["shorts", "hamster", "animation", "3danimation", "comedy", "viral", "funny"]
+            "audio_cues": [
+                {"sound": "whoosh", "offset": 0.2, "volume": 2.2, "duration": 0.8},
+                {"sound": "rising_hum", "offset": 0.7, "volume": 2.8, "duration": 1.0},
+                {"sound": "clatter_thump", "offset": 1.5, "volume": 2.5, "duration": 1.6},
+                {"sound": "mechanical_click", "offset": 3.4, "volume": 3.0, "duration": 0.6},
+                {"sound": "boing", "offset": 3.9, "volume": 2.2, "duration": 1.0},
+                {"sound": "whoosh", "offset": 4.5, "volume": 2.2, "duration": 0.8},
+                {"sound": "ding_high_confirm", "offset": 6.6, "volume": 2.8, "duration": 1.8}
+            ],
+            "yt_title": "Hamster Chef vs The Anti-Gravity Golden Egg! 🐹🥚✨ #shorts #animation #viral #funny",
+            "fb_title": "He was NOT expecting the egg to do THAT! 😱🍳 Look at his reaction at the end! 😂 Tag a friend!",
+            "tags": ["shorts", "hamster", "animation", "3danimation", "pixar", "comedy", "viral", "funny", "goldenegg"]
         })
 
     # Concatenate video scenes

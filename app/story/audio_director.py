@@ -69,6 +69,25 @@ SOUND_ALIASES = {
     "tire": "tire_screech.mp3",
     "screech": "tire_screech.mp3",
     "drift": "tire_screech.mp3",
+    "click": "mechanical_click.mp3",
+    "button": "mechanical_click.mp3",
+    "switch": "mechanical_click.mp3",
+    "press": "mechanical_click.mp3",
+    "mechanical_click": "mechanical_click.mp3",
+    "clatter": "clatter_thump.mp3",
+    "chaos": "clatter_thump.mp3",
+    "pots": "clatter_thump.mp3",
+    "pans": "clatter_thump.mp3",
+    "tumble": "clatter_thump.mp3",
+    "clatter_thump": "clatter_thump.mp3",
+    "hum": "rising_hum.mp3",
+    "levitate": "rising_hum.mp3",
+    "glow": "rising_hum.mp3",
+    "rising_hum": "rising_hum.mp3",
+    "gold": "ding_high_confirm.mp3",
+    "triumph": "ding_high_confirm.mp3",
+    "confirm": "ding_high_confirm.mp3",
+    "ding_high_confirm": "ding_high_confirm.mp3",
 }
 
 def generate_synthetic_fallback(out_path: str, duration: float = 1.5, freq: int = 500) -> str:
@@ -184,42 +203,59 @@ def build_scene_audio_timeline(story: Dict, total_duration: float = 8.6, output_
     inputs = ["-i", bgm_path]
     filter_parts = []
     mix_inputs = ["[bgm]"]
-
     # Background music energetic bed (full energy, continuous comedy rhythm)
     filter_parts.append(f"[0:a]volume=0.75,atrim=0:{total_duration},asetpts=PTS-STARTPTS[bgm]")
-
-    # Scene timing partitions aligned to the Conflict Arc action climax:
-    # Scene 1: 0.0s -> 2.8s (Visual Action Climax: 1.2s)
-    # Scene 2: 2.8s -> 5.6s (Visual Action Climax: 4.0s)
-    # Scene 3: 5.6s -> 8.6s (Visual Action Climax: 6.8s)
-    default_offsets = [1.2, 4.0, 6.8]
-
     input_idx = 1
-    for i, sc in enumerate(scenes[:3]):
-        sound_type = sc.get("foley_sound_type", "bonk")
-        sfx_path = resolve_foley_sound(sound_type)
-        inputs.extend(["-i", sfx_path])
 
-        offset_sec = sc.get("impact_offset", default_offsets[i])
-        delay_ms = int(offset_sec * 1000)
-        dur = 2.4 if i < 2 else 2.6
-        label = f"sfx{i+1}"
-        filter_parts.append(
-            f"[{input_idx}:a]volume=2.0,atrim=0:{dur},asetpts=PTS-STARTPTS,adelay={delay_ms}|{delay_ms}[{label}]"
-        )
-        mix_inputs.append(f"[{label}]")
-        input_idx += 1
-
-        # If scene 3 has an ending punchline/ding, add finishing flourish
-        if i == 2:
-            ding_path = resolve_foley_sound("ding")
-            inputs.extend(["-i", ding_path])
-            ding_delay = int((total_duration - 0.8) * 1000)
+    # If story specifies a multi-cue audio timeline (200% synchronized micro-timing)
+    custom_cues = story.get("audio_cues")
+    if custom_cues:
+        for idx, cue in enumerate(custom_cues):
+            sound_type = cue.get("sound", "bonk")
+            sfx_path = resolve_foley_sound(sound_type)
+            inputs.extend(["-i", sfx_path])
+            offset_sec = cue.get("offset", 0.0)
+            delay_ms = int(offset_sec * 1000)
+            vol = cue.get("volume", 2.5)
+            dur = cue.get("duration", 1.5)
+            label = f"cue{idx+1}"
             filter_parts.append(
-                f"[{input_idx}:a]volume=2.2,atrim=0:1.5,asetpts=PTS-STARTPTS,adelay={ding_delay}|{ding_delay}[ding_finish]"
+                f"[{input_idx}:a]volume={vol},atrim=0:{dur},asetpts=PTS-STARTPTS,adelay={delay_ms}|{delay_ms}[{label}]"
             )
-            mix_inputs.append("[ding_finish]")
+            mix_inputs.append(f"[{label}]")
             input_idx += 1
+    else:
+        # Scene timing partitions aligned to the Conflict Arc action climax:
+        # Scene 1: 0.0s -> 2.8s (Visual Action Climax: 1.2s)
+        # Scene 2: 2.8s -> 5.6s (Visual Action Climax: 4.0s)
+        # Scene 3: 5.6s -> 8.6s (Visual Action Climax: 6.8s)
+        default_offsets = [1.2, 4.0, 6.8]
+
+        for i, sc in enumerate(scenes[:3]):
+            sound_type = sc.get("foley_sound_type", "bonk")
+            sfx_path = resolve_foley_sound(sound_type)
+            inputs.extend(["-i", sfx_path])
+
+            offset_sec = sc.get("impact_offset", default_offsets[i])
+            delay_ms = int(offset_sec * 1000)
+            dur = 2.4 if i < 2 else 2.6
+            label = f"sfx{i+1}"
+            filter_parts.append(
+                f"[{input_idx}:a]volume=2.0,atrim=0:{dur},asetpts=PTS-STARTPTS,adelay={delay_ms}|{delay_ms}[{label}]"
+            )
+            mix_inputs.append(f"[{label}]")
+            input_idx += 1
+
+            # If scene 3 has an ending punchline/ding, add finishing flourish
+            if i == 2:
+                ding_path = resolve_foley_sound("ding")
+                inputs.extend(["-i", ding_path])
+                ding_delay = int((total_duration - 0.8) * 1000)
+                filter_parts.append(
+                    f"[{input_idx}:a]volume=2.2,atrim=0:1.5,asetpts=PTS-STARTPTS,adelay={ding_delay}|{ding_delay}[ding_finish]"
+                )
+                mix_inputs.append("[ding_finish]")
+                input_idx += 1
 
     # Final amix with normalize=0 (prevents volume crush) + loudnorm (-14 LUFS YouTube broadcast standard)
     amix_str = (
@@ -238,6 +274,7 @@ def build_scene_audio_timeline(story: Dict, total_duration: float = 8.6, output_
         "-filter_complex", full_filter,
         "-map", "[aout]",
         "-c:a", "pcm_s16le",
+        "-ar", "48000",
         "-t", str(total_duration),
         output_wav
     ]
