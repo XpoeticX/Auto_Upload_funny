@@ -176,8 +176,8 @@ def build_scene_audio_timeline(story: Dict, total_duration: float = 8.6, output_
     filter_parts = []
     mix_inputs = ["[bgm]"]
 
-    # Background music ducked bed
-    filter_parts.append(f"[0:a]volume=0.20,atrim=0:{total_duration},asetpts=PTS-STARTPTS[bgm]")
+    # Background music energetic bed (full energy, continuous comedy rhythm)
+    filter_parts.append(f"[0:a]volume=0.75,atrim=0:{total_duration},asetpts=PTS-STARTPTS[bgm]")
 
     # Scene timing partitions:
     # Scene 1: 0.0s -> 2.8s
@@ -195,7 +195,7 @@ def build_scene_audio_timeline(story: Dict, total_duration: float = 8.6, output_
         dur = 2.4 if i < 2 else 2.6
         label = f"sfx{i+1}"
         filter_parts.append(
-            f"[{input_idx}:a]volume=1.8,atrim=0:{dur},asetpts=PTS-STARTPTS,adelay={delay_ms}|{delay_ms}[{label}]"
+            f"[{input_idx}:a]volume=2.0,atrim=0:{dur},asetpts=PTS-STARTPTS,adelay={delay_ms}|{delay_ms}[{label}]"
         )
         mix_inputs.append(f"[{label}]")
         input_idx += 1
@@ -206,13 +206,17 @@ def build_scene_audio_timeline(story: Dict, total_duration: float = 8.6, output_
             inputs.extend(["-i", ding_path])
             ding_delay = int((total_duration - 1.0) * 1000)
             filter_parts.append(
-                f"[{input_idx}:a]volume=1.3,atrim=0:1.5,asetpts=PTS-STARTPTS,adelay={ding_delay}|{ding_delay}[ding_finish]"
+                f"[{input_idx}:a]volume=2.2,atrim=0:1.5,asetpts=PTS-STARTPTS,adelay={ding_delay}|{ding_delay}[ding_finish]"
             )
             mix_inputs.append("[ding_finish]")
             input_idx += 1
 
-    # Final amix
-    amix_str = "".join(mix_inputs) + f"amix=inputs={len(mix_inputs)}:duration=first:dropout_transition=0,volume=1.2[aout]"
+    # Final amix with normalize=0 (prevents volume crush) + loudnorm (-14 LUFS YouTube broadcast standard)
+    amix_str = (
+        "".join(mix_inputs)
+        + f"amix=inputs={len(mix_inputs)}:duration=first:dropout_transition=0:normalize=0,"
+        + "loudnorm=I=-14:TP=-1.5:LRA=7[aout]"
+    )
     filter_parts.append(amix_str)
 
     full_filter = ";".join(filter_parts)
