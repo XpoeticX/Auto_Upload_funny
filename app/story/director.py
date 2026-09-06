@@ -13,9 +13,9 @@ from app.story.audio_director import build_scene_audio_timeline
 
 class StoryScene(BaseModel):
     scene_number: int
-    act_name: str # Setup, Conflict/Chaos, Punchline/Payoff
+    act_name: str # "Hook -> Conflict", "The Comeback", "Climax Payoff" (Jack Craig Conflict Arc)
     visual_prompt: str # High-detail prompt for video diffusion
-    foley_sound_type: str # knife_chop, sizzle, crunch, meow, ding, splash, bonk, whoosh
+    foley_sound_type: str # knife_chop, sizzle, crunch, meow, ding, splash, bonk, whoosh, boing
     foley_description: str
 
 class ViralStoryScript(BaseModel):
@@ -39,22 +39,22 @@ FALLBACK_CONCEPTS = [
         "scenes": [
             {
                 "scene_number": 1,
-                "act_name": "Setup / Hook",
-                "visual_prompt": "Muscular shark wearing chef apron intently slicing a colorful Nike running sneaker on a wooden cutting board with a sharp cleaver, kitchen counter, 3d pixar animation, cinematic lighting",
+                "act_name": "Hook -> Conflict",
+                "visual_prompt": "Muscular shark chef chopping a colorful Nike sneaker on cutting board, shoe laces suddenly snap back and knock his chef hat into a flaming stove, 3d pixar animation",
                 "foley_sound_type": "knife_chop",
-                "foley_description": "Rapid wooden cutting board knife chops"
+                "foley_description": "Rapid wooden cutting board knife chops and sudden snap"
             },
             {
                 "scene_number": 2,
-                "act_name": "Conflict / Chaos",
-                "visual_prompt": "Shark chef tossing sliced sneaker pieces into a fiery sizzling wok, flames shooting up, steam billowing, focused intense shark eyes, 3d animation",
-                "foley_sound_type": "sizzle",
-                "foley_description": "Hot sizzling wok frying flames"
+                "act_name": "The Comeback",
+                "visual_prompt": "Shark chef grins fiercely with sharp teeth, pulls out dual glowing cleavers, and dices the flying sneaker pieces in mid-air with lightning speed, 3d animation",
+                "foley_sound_type": "whoosh",
+                "foley_description": "Fast acrobatic blade whooshes and wok catch"
             },
             {
                 "scene_number": 3,
-                "act_name": "Payoff / Punchline",
-                "visual_prompt": "Shark chef proudly presenting gourmet cooked shoe on white ceramic plate with ketchup drizzle and parsley garnish, smiling with sharp teeth, 3d pixar style",
+                "act_name": "Climax Payoff",
+                "visual_prompt": "Shark chef proudly presents a gourmet sneaker burger on golden platter with ketchup drizzle, sparkling clean kitchen, triumph boss pose, 3d pixar style",
                 "foley_sound_type": "ding",
                 "foley_description": "Triumph presentation bell ding"
             }
@@ -72,22 +72,22 @@ FALLBACK_CONCEPTS = [
         "scenes": [
             {
                 "scene_number": 1,
-                "act_name": "Setup / Hook",
-                "visual_prompt": "Adorable chubby baby wearing a diaper riding on the back of a tiny cute spotted mini dairy cow walking down a lush green flower path, warm golden sunlight, 3d pixar animation",
+                "act_name": "Hook -> Conflict",
+                "visual_prompt": "Adorable chubby baby in diaper riding mini dairy cow on flower path, cow suddenly skids towards a giant messy mud puddle, baby eyes wide open in shock, 3d pixar animation",
                 "foley_sound_type": "whoosh",
-                "foley_description": "Gentle playful footsteps and happy sound"
+                "foley_description": "Playful trot into sudden skid sound"
             },
             {
                 "scene_number": 2,
-                "act_name": "Conflict / Chaos",
-                "visual_prompt": "Mini dairy cow starts spinning and doing a tap dance on its hind legs while chubby baby holds on giggling with joy, vibrant flower petals flying, 3d pixar style",
+                "act_name": "The Comeback",
+                "visual_prompt": "Chubby baby bursts out laughing, twists cow's ear like motorcycle throttle, mini cow pops a wheelie and gracefully drifts sideways over the puddle, 3d pixar style",
                 "foley_sound_type": "boing",
-                "foley_description": "Springy dance bounces and happy giggle"
+                "foley_description": "Springy dance bounce and engine rev boing"
             },
             {
                 "scene_number": 3,
-                "act_name": "Payoff / Punchline",
-                "visual_prompt": "Baby and mini cow wearing matching tiny sunglasses high-fiving each other with big joyful smiles under blooming apple tree, 3d pixar animation",
+                "act_name": "Climax Payoff",
+                "visual_prompt": "Baby and mini cow stick a superhero landing on blooming flower bed wearing matching tiny sunglasses, giving high-fives with huge joyful smiles, 3d pixar animation",
                 "foley_sound_type": "ding",
                 "foley_description": "Achievement bell chime"
             }
@@ -105,24 +105,24 @@ FALLBACK_CONCEPTS = [
         "scenes": [
             {
                 "scene_number": 1,
-                "act_name": "Setup / Hook",
-                "visual_prompt": "Cartoon cockroach family in colorful pajamas sitting around tiny dining table holding miniature forks, eating tiny slice of pie, warm cozy lighting, 3d pixar animation",
-                "foley_sound_type": "whoosh",
-                "foley_description": "Tiny fork clinks and gentle chatter"
+                "act_name": "Hook -> Conflict",
+                "visual_prompt": "Cockroach family in pajamas enjoying tiny pie at dinner table, suddenly a giant cartoon human foot steps down right outside the window shaking the room, 3d pixar animation",
+                "foley_sound_type": "bonk",
+                "foley_description": "Heavy earthquake foot thud"
             },
             {
                 "scene_number": 2,
-                "act_name": "Conflict / Chaos",
-                "visual_prompt": "Baby cockroach accidentally drops pie crumb, whole cockroach family gasps dramatically and hugs each other in tears, exaggerated emotional cartoon faces, 3d pixar",
-                "foley_sound_type": "bonk",
-                "foley_description": "Dramatic cartoon gasp and sniffle"
+                "act_name": "The Comeback",
+                "visual_prompt": "Papa cockroach puts on tiny sunglasses, taps a remote control, and a miniature red sports car zooms into the dining room for emergency evacuation, 3d pixar style",
+                "foley_sound_type": "whoosh",
+                "foley_description": "Toy race car tire screech"
             },
             {
                 "scene_number": 3,
-                "act_name": "Payoff / Punchline",
-                "visual_prompt": "Giant cartoon human slipper taps on the window glass, all cockroaches instantly freeze in hilarious panicked statues, eyes wide open, 3d animation",
+                "act_name": "Climax Payoff",
+                "visual_prompt": "Entire cockroach family in pajamas speeds away in the tiny convertible waving happily as human trips over broom in hilarious background fail, 3d pixar animation",
                 "foley_sound_type": "ding",
-                "foley_description": "Freeze frame comedy ding"
+                "foley_description": "Victory chime and happy horn beep"
             }
         ],
         "music_vibe": "bouncy_comedy",
@@ -138,22 +138,22 @@ FALLBACK_CONCEPTS = [
         "scenes": [
             {
                 "scene_number": 1,
-                "act_name": "Setup / Hook",
-                "visual_prompt": "Giant cute glossy red tomato with huge sparkling anime eyes and tiny cute smile, wearing a red hairbow, blinking cutely on marble kitchen counter, 3d pixar animation",
-                "foley_sound_type": "boing",
-                "foley_description": "Cute squeaky blink sound"
+                "act_name": "Hook -> Conflict",
+                "visual_prompt": "Glossy cute tomato with anime eyes and red bow on cutting board, chef's cleaver suddenly slams down inches away, tomato gasps in comical terror, 3d pixar animation",
+                "foley_sound_type": "bonk",
+                "foley_description": "Heavy blade slam and squeak"
             },
             {
                 "scene_number": 2,
-                "act_name": "Conflict / Chaos",
-                "visual_prompt": "Shadow of a chef holding a knife looms over the counter, cute tomato gasps with round shocked mouth and rolls frantically behind a flour bag, 3d pixar animation",
+                "act_name": "The Comeback",
+                "visual_prompt": "Cute tomato rolls backwards like an acrobat, puts on tiny black sunglasses, and hops onto a wooden butter knife to surf across the counter, 3d pixar animation",
                 "foley_sound_type": "whoosh",
-                "foley_description": "Fast rolling whoosh and flour puff"
+                "foley_description": "Countertop knife slide whoosh"
             },
             {
                 "scene_number": 3,
-                "act_name": "Payoff / Punchline",
-                "visual_prompt": "Cute tomato pops out from behind flour bag wearing black sunglasses and making a tiny peace sign with her stem leaf, smiling cheekily, 3d pixar style",
+                "act_name": "Climax Payoff",
+                "visual_prompt": "Tomato ollies into a soft fruit basket, making a tiny peace sign with stem leaf while chef scratches head looking completely baffled, 3d pixar style",
                 "foley_sound_type": "ding",
                 "foley_description": "Cool reveal chime"
             }
@@ -171,22 +171,22 @@ FALLBACK_CONCEPTS = [
         "scenes": [
             {
                 "scene_number": 1,
-                "act_name": "Setup",
-                "visual_prompt": "Chubby orange cat chef chopping raw chicken on wooden cutting board, knife slicing rapidly, flour flying, 3d pixar style",
-                "foley_sound_type": "knife_chop",
-                "foley_description": "Rapid rhythmic wooden board knife chops"
+                "act_name": "Hook -> Conflict",
+                "visual_prompt": "Chubby ginger cat chef rapidly dicing chicken, pan suddenly catches giant fire with flames shooting to ceiling, cat eyes popping in panic, 3d pixar style",
+                "foley_sound_type": "sizzle",
+                "foley_description": "Violent oil fire sizzle"
             },
             {
                 "scene_number": 2,
-                "act_name": "Conflict",
-                "visual_prompt": "Orange cat chef pan-frying at gas stove, thick steam billowing, flames flickering, focused intense facial expression",
-                "foley_sound_type": "sizzle",
-                "foley_description": "Deep hot oil frying pan sizzle"
+                "act_name": "The Comeback",
+                "visual_prompt": "Cat chef snaps on welding goggles, flips the fiery wok into the air, and catches every crispy chicken tender back into the pan in one slick move, 3d pixar",
+                "foley_sound_type": "whoosh",
+                "foley_description": "Acrobatic pan flip whoosh"
             },
             {
                 "scene_number": 3,
-                "act_name": "Payoff",
-                "visual_prompt": "Orange cat chef devouring giant crispy fried chicken drumstick, mouth chewing, crumbs flying, big joyful cartoon smile",
+                "act_name": "Climax Payoff",
+                "visual_prompt": "Cat chef munches on giant golden crispy fried chicken drumstick with supreme joyful swagger, crumbs flying, triumph smile, 3d pixar style",
                 "foley_sound_type": "crunch",
                 "foley_description": "Crispy chicken crunch and ending service bell ding"
             }
@@ -230,18 +230,23 @@ Your mission is to look at GLOBAL TRENDING MARKET DATA (what is getting 10M-80M 
 === 2. CHANNEL AUDIENCE DATA ===
 {feedback_context or "Channel is in growth phase. Prioritize the high-velocity Global Trends above!"}
 
-=== 3. MANDATORY CREATIVE DIRECTIVES ===
+=== 3. MANDATORY CREATIVE DIRECTIVES (THE 2-WAVE CONFLICT ARC) ===
+Every video must strictly follow the viral "CONFLICT ARC" algorithm curve (Progression vs. Intensity):
 1. Universal visual humor & shock / awe / WTF hook (ZERO spoken voiceover / dialogue).
-2. Model after the highest-velocity global formats:
-   - Surreal Anthropomorphic (e.g., Muscular Shark chef slicing a sneaker in a kitchen, Crocodile dentist)
-   - Adorable Baby & Animal Companions (e.g., Chubby cute baby riding a mini cow in a garden, Baby on giant pelican)
-   - Living Cartoon Food & Objects with huge expressive Pixar eyes (e.g., Giant glossy red tomato with a hairbow blinking)
-   - "Ulti Duniya" / Absurd Role Reversal (e.g., Cockroach family in pajamas having an emotional dinner)
-   - Animal Slapstick / Food ASMR (e.g., Cat chef chopping chicken, Hamster bakery escape)
-3. Exactly 3 interconnected visual scenes with character consistency:
-   - Act 1 (Hook / The Absurd Situation: 0s-3s): Introduce the shocking or adorable character.
-   - Act 2 (Chaos / The Impossible Action: 3s-6s): The intense action, cooking flames, slip, fail, or wild motion.
-   - Act 3 (Payoff / Punchline: 6s-9s): The hilarious twist, triumphant boss moment, or cute celebration.
+2. Exactly 3 interconnected visual scenes with character consistency following the 2-wave curve:
+   - Act 1: "Hook -> Conflict" (0s-3s):
+     * Hook (0-1s): Immediate visual shock mid-action (in media res).
+     * Rising Action -> Conflict (1-3s): Tension builds fast into a crisis, obstacle, or disaster (First Intensity Peak).
+   - Act 2: "The Comeback" (3s-6s):
+     * The Comeback (Trough to Pivot): The character refuses to lose! They pull off an unexpected counter-move, bizarre secret tool, or hilarious pivot that flips the crisis on its head.
+   - Act 3: "Climax Payoff" (6s-9s):
+     * Rising Action -> Climax Payoff (6-9s): Intensity skyrockets to the highest peak on the chart, ending in an explosive, hilarious punchline, triumphant boss moment, or mind-blowing resolution.
+3. Model after the highest-velocity global formats:
+   - Surreal Anthropomorphic (e.g., Muscular Shark chef slicing a sneaker, Crocodile dentist)
+   - Adorable Baby & Animal Companions (e.g., Chubby cute baby riding a mini cow, Baby on giant pelican)
+   - Living Cartoon Food & Objects with huge expressive Pixar eyes (e.g., Giant glossy red tomato escaping knife)
+   - "Ulti Duniya" / Absurd Role Reversal (e.g., Cockroach family in pajamas having dinner)
+   - Animal Slapstick / Food ASMR (e.g., Cat chef, Hamster bakery escape)
 4. Style: Always describe as "hyper-detailed 3d pixar animation style, cinematic lighting, expressive facial features, 8k resolution, vivid colors".
 5. Specific Foley sound effect requirements for each scene (choose from: whoosh, bonk, quack, bark, crunch, meow, sizzle, boing, knife_chop, ding).
 
