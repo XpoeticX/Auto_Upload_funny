@@ -19,20 +19,21 @@ def get_hf_token_pool() -> list:
     pool = [t.strip() for t in raw if t and t.strip() and t.strip() != "None"]
     return pool or [None]
 
-def generate_ai_video_from_prompt(prompt: str, output_path: str, duration: int = 3) -> str:
+def generate_ai_video_from_prompt(prompt: str, output_path: str, duration: int = 3, negative_prompt: str = None) -> str:
     """
     Generates a 100% neural AI video clip from text using open cloud video diffusion ($0 cost).
     Automatically rotates through available HF_TOKENs if one encounters a temporary ZeroGPU quota cooldown.
     """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     tokens = get_hf_token_pool()
+    neg = negative_prompt or "worst quality, inconsistent motion, blurry, jittery, distorted, static, 2D, talking, watermark, text, low quality"
 
     for idx, token in enumerate(tokens):
         try:
             client = Client(SPACE_NAME, token=token) if token else Client(SPACE_NAME)
             result = client.predict(
                 prompt=prompt,
-                negative_prompt="worst quality, inconsistent motion, blurry, jittery, distorted, static",
+                negative_prompt=neg,
                 input_image_filepath=None,
                 input_video_filepath=None,
                 height_ui=704,

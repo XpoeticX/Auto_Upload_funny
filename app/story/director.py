@@ -12,63 +12,119 @@ from app.video.ai_diffusion import generate_ai_video_from_prompt, animate_image_
 from app.analytics.engine import get_rlaf_ai_feedback
 from app.story.audio_director import build_scene_audio_timeline
 
+class FoleyCue(BaseModel):
+    timestamp_sec: float
+    sfx: str
+    volume: float = 2.0
+
+class Protagonist(BaseModel):
+    name: str
+    visual_identity: str  # Detailed physical description for prompt consistency
+
+class AudioConfig(BaseModel):
+    bgm_style: str = "bouncy_comedy_loop"
+    bgm_base_volume: float = 0.75
+    target_loudnorm_lufs: float = -14.0
+
 class StoryScene(BaseModel):
-    scene_number: int
-    act_name: str # "Hook -> Conflict", "The Comeback", "Climax Payoff" (Jack Craig Conflict Arc)
-    visual_prompt: str # High-detail prompt for video diffusion
-    foley_sound_type: str # knife_chop, sizzle, crunch, meow, ding, splash, bonk, whoosh, boing
-    foley_description: str
+    scene_index: int = Field(default=1, alias="scene_number")
+    arc_phase: str = Field(default="Hook & Rising Action", alias="act_name")
+    duration_sec: float = 2.8
+    diffusion_prompt: str = Field(default="", alias="visual_prompt")
+    negative_prompt: str = "static, blurry, 2D, talking, watermark, text, low quality"
+    foley_cues: Optional[List[FoleyCue]] = None
+    # Legacy fields (backward compat)
+    foley_sound_type: Optional[str] = None
+    foley_description: Optional[str] = None
+
+    class Config:
+        populate_by_name = True
 
 class ViralStoryScript(BaseModel):
-    title: str
-    niche: str # e.g. "Cat Comedy", "Animal Duo", "Epic Fail", "Food ASMR", "Fantasy Comedy"
-    character_name: str
-    character_description: str # Master description for visual consistency
+    story_title: str = Field(default="", alias="title")
+    niche: Optional[str] = None
+    protagonist: Optional[Protagonist] = None
+    environment: Optional[str] = None
+    # Legacy fields
+    character_name: Optional[str] = None
+    character_description: Optional[str] = None
     scenes: List[StoryScene]
-    music_vibe: str # bouncy_comedy, sneaky, triumphant
-    yt_title: str
-    fb_title: str
-    tags: List[str]
+    audio_config: Optional[AudioConfig] = None
+    music_vibe: Optional[str] = None
+    yt_title: str = ""
+    fb_title: str = ""
+    tags: List[str] = []
     related_queries: Optional[List[str]] = None
 
 FALLBACK_CONCEPTS = [
     {
         "title": "Hamster Chef & The Anti-Gravity Golden Egg",
-        "niche": "Animal Slapstick & Food Magic",
+        "niche": "Animal Slapstick",
         "character_name": "Chester the Hamster Chef",
-        "character_description": "Chubby adorable hamster chef wearing a tiny white toque chef hat in a modern sunlit kitchen, hyper-detailed 3d pixar animation style, fluffy fur, sparkling eyes",
+        "character_description": "Chubby adorable hamster chef wearing a tiny white toque chef hat, fluffy fur, sparkling eyes",
+        "protagonist": {
+            "name": "Chester",
+            "visual_identity": "Chubby adorable hamster chef wearing a tiny white toque chef hat, fluffy fur, sparkling eyes"
+        },
+        "environment": "Modern sunlit kitchen with bright tiles and wooden countertops",
         "scenes": [
             {
-                "scene_number": 1,
-                "act_name": "Hook -> Conflict",
-                "visual_prompt": "Cute chubby hamster chef curiously inspects glowing golden egg on counter, egg suddenly levitates and triggers zero-gravity kitchen chaos with flying pots and flour, 3d pixar animation",
-                "foley_sound_type": "clatter_thump",
-                "foley_description": "Curious whoosh, mysterious rising hum, and violent zero-gravity kitchen clatter crash"
+                "scene_index": 1,
+                "arc_phase": "Hook & Immediate Action",
+                "duration_sec": 2.5,
+                "diffusion_prompt": "Chubby adorable hamster chef wearing a tiny white toque chef hat, fluffy fur, sparkling eyes, curiously inspects glowing golden egg on counter in a modern sunlit kitchen. Egg suddenly levitates, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "whoosh", "volume": 1.8},
+                    {"timestamp_sec": 1.5, "sfx": "rising_hum", "volume": 2.0}
+                ]
             },
             {
-                "scene_number": 2,
-                "act_name": "The Comeback",
-                "visual_prompt": "Hamster chef slams paw on red A-GRAV REVERSE wall button, gravity violently restores, hamster whips out wire mesh strainer net ready to catch, 3d pixar style",
-                "foley_sound_type": "mechanical_click",
-                "foley_description": "Heavy mechanical button click, reverse gravity boing, and swift net whoosh"
+                "scene_index": 2,
+                "arc_phase": "Conflict Spike",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Chubby adorable hamster chef wearing a tiny white toque chef hat tumbling playfully in zero-gravity in a modern sunlit kitchen. Pots, pans, and a flour tornado spinning wildly, golden egg bouncing off walls, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "clatter_multi", "volume": 2.5},
+                    {"timestamp_sec": 1.8, "sfx": "whoosh_fast", "volume": 2.2}
+                ]
             },
             {
-                "scene_number": 3,
-                "act_name": "Climax Payoff",
-                "visual_prompt": "Golden egg lands cleanly into wire strainer net surrounded by magical glowing orbital rings, chubby hamster chef beams with proud rosy cheeks and winks at camera, 3d pixar",
-                "foley_sound_type": "ding_high_confirm",
-                "foley_description": "Crystal golden chime ding and celebratory victory flourish"
+                "scene_index": 3,
+                "arc_phase": "The Comeback",
+                "duration_sec": 2.5,
+                "diffusion_prompt": "Chubby adorable hamster chef wearing a tiny white toque chef hat floating upside down, violently slamming his paw on a glowing red A-GRAV REVERSE button on the wall of the modern sunlit kitchen, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 1.0, "sfx": "mechanical_click", "volume": 2.8},
+                    {"timestamp_sec": 2.0, "sfx": "boing", "volume": 2.2}
+                ]
+            },
+            {
+                "scene_index": 4,
+                "arc_phase": "Rising Action 2",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Gravity violently snaps back in the modern sunlit kitchen, pots and pans crashing down. Chubby adorable hamster chef wearing a tiny white toque chef hat playfully dives through the air wielding a wire mesh strainer net, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "crash_multi", "volume": 2.8},
+                    {"timestamp_sec": 1.5, "sfx": "whoosh", "volume": 2.0}
+                ]
+            },
+            {
+                "scene_index": 5,
+                "arc_phase": "Climax Payoff",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Golden egg caught perfectly in the net. Chubby adorable hamster chef wearing a tiny white toque chef hat smiling triumphantly in the modern sunlit kitchen, magical glowing rings around the egg, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 1.0, "sfx": "ding_high_confirm", "volume": 2.5},
+                    {"timestamp_sec": 2.0, "sfx": "whoosh_high", "volume": 1.8}
+                ]
             }
         ],
-        "audio_cues": [
-            {"sound": "whoosh", "offset": 0.2, "volume": 2.2, "duration": 0.8},
-            {"sound": "rising_hum", "offset": 0.7, "volume": 2.8, "duration": 1.0},
-            {"sound": "clatter_thump", "offset": 1.5, "volume": 2.5, "duration": 1.6},
-            {"sound": "mechanical_click", "offset": 3.4, "volume": 3.0, "duration": 0.6},
-            {"sound": "boing", "offset": 3.9, "volume": 2.2, "duration": 1.0},
-            {"sound": "whoosh", "offset": 4.5, "volume": 2.2, "duration": 0.8},
-            {"sound": "ding_high_confirm", "offset": 6.6, "volume": 2.8, "duration": 1.8}
-        ],
+        "audio_config": {"bgm_style": "bouncy_comedy_loop", "bgm_base_volume": 0.75, "target_loudnorm_lufs": -14.0},
         "music_vibe": "bouncy_comedy",
         "yt_title": "Hamster Chef vs The Anti-Gravity Golden Egg! 🐹🥚✨ #shorts #animation #viral #funny",
         "fb_title": "He was NOT expecting the egg to do THAT! 😱🍳 Look at his reaction at the end! 😂 Tag a friend!",
@@ -78,30 +134,71 @@ FALLBACK_CONCEPTS = [
         "title": "Shark Chef's Sneaker Recipe",
         "niche": "Surreal Animal Comedy",
         "character_name": "Chef Jaws",
-        "character_description": "Muscular anthropomorphic shark wearing a chef apron in a luxury kitchen, hyper-detailed 3d pixar CGI, vivid cinematic lighting",
+        "character_description": "Muscular anthropomorphic shark wearing a chef apron, sharp teeth",
+        "protagonist": {
+            "name": "Chef Jaws",
+            "visual_identity": "Muscular anthropomorphic shark wearing a chef apron, sharp teeth"
+        },
+        "environment": "Luxury kitchen with dark marble counters and neon accents",
         "scenes": [
             {
-                "scene_number": 1,
-                "act_name": "Hook -> Conflict",
-                "visual_prompt": "Muscular shark chef chopping a colorful Nike sneaker on cutting board, shoe laces suddenly snap back and knock his chef hat into a flaming stove, 3d pixar animation",
-                "foley_sound_type": "knife_chop",
-                "foley_description": "Rapid wooden cutting board knife chops and sudden snap"
+                "scene_index": 1,
+                "arc_phase": "Hook & Immediate Action",
+                "duration_sec": 2.5,
+                "diffusion_prompt": "Muscular anthropomorphic shark wearing a chef apron chopping a colorful Nike sneaker on cutting board in a luxury kitchen. Laces suddenly snap back knocking his hat into a flaming stove, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "knife_chop", "volume": 2.0},
+                    {"timestamp_sec": 1.5, "sfx": "boing", "volume": 1.8}
+                ]
             },
             {
-                "scene_number": 2,
-                "act_name": "The Comeback",
-                "visual_prompt": "Shark chef grins fiercely with sharp teeth, pulls out dual glowing cleavers, and dices the flying sneaker pieces in mid-air with lightning speed, 3d animation",
-                "foley_sound_type": "whoosh",
-                "foley_description": "Fast acrobatic blade whooshes and wok catch"
+                "scene_index": 2,
+                "arc_phase": "Conflict Spike",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Luxury kitchen filling with smoke. Sneaker pieces flying through the air, muscular anthropomorphic shark wearing a chef apron panicking and waving his fins wildly, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "sizzle", "volume": 2.5},
+                    {"timestamp_sec": 1.5, "sfx": "whoosh", "volume": 1.8}
+                ]
             },
             {
-                "scene_number": 3,
-                "act_name": "Climax Payoff",
-                "visual_prompt": "Shark chef proudly presents a gourmet sneaker burger on golden platter with ketchup drizzle, sparkling clean kitchen, triumph boss pose, 3d pixar style",
-                "foley_sound_type": "ding",
-                "foley_description": "Triumph presentation bell ding"
+                "scene_index": 3,
+                "arc_phase": "The Comeback",
+                "duration_sec": 2.5,
+                "diffusion_prompt": "Muscular anthropomorphic shark wearing a chef apron grins fiercely, dramatically pulling out dual glowing cleavers amidst the smoke in the luxury kitchen, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "whoosh_fast", "volume": 2.2},
+                    {"timestamp_sec": 1.5, "sfx": "ding", "volume": 1.5}
+                ]
+            },
+            {
+                "scene_index": 4,
+                "arc_phase": "Rising Action 2",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Muscular anthropomorphic shark wearing a chef apron performing a lightning-speed dicing chain reaction mid-air in the luxury kitchen. Sneaker ingredients flying into perfect formation, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "knife_chop", "volume": 2.5},
+                    {"timestamp_sec": 1.2, "sfx": "whoosh_fast", "volume": 2.0},
+                    {"timestamp_sec": 2.2, "sfx": "whoosh_high", "volume": 2.0}
+                ]
+            },
+            {
+                "scene_index": 5,
+                "arc_phase": "Climax Payoff",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Muscular anthropomorphic shark wearing a chef apron proudly presents a gourmet sneaker burger on a golden platter in a sparkling clean luxury kitchen. Boss triumph pose, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 1.0, "sfx": "ding_high_confirm", "volume": 2.5},
+                    {"timestamp_sec": 2.0, "sfx": "whoosh", "volume": 1.5}
+                ]
             }
         ],
+        "audio_config": {"bgm_style": "bouncy_comedy_loop", "bgm_base_volume": 0.75, "target_loudnorm_lufs": -14.0},
         "music_vibe": "bouncy_comedy",
         "yt_title": "Who Let The Shark In The Kitchen?! 🦈👟 #shorts #viral #funny",
         "fb_title": "His cooking skills are 10/10 but the recipe is questionable! 😂🦈 Tag a friend who would eat this!",
@@ -109,32 +206,72 @@ FALLBACK_CONCEPTS = [
     },
     {
         "title": "Baby & The Dancing Mini Cow",
-        "niche": "Cute Baby & Animal Adventure",
+        "niche": "Cute Baby & Animal",
         "character_name": "Baby Leo & Daisy the Cow",
-        "character_description": "Chubby laughing cute baby in diaper riding a tiny spotted miniature dairy cow, 3d pixar animation style, soft warm sunlit garden",
+        "character_description": "Chubby laughing cute baby in diaper, rosy cheeks, joyful expression",
+        "protagonist": {
+            "name": "Baby Leo",
+            "visual_identity": "Chubby laughing cute baby in diaper, rosy cheeks, joyful expression"
+        },
+        "environment": "Soft warm sunlit garden with flower path and a giant mud puddle",
         "scenes": [
             {
-                "scene_number": 1,
-                "act_name": "Hook -> Conflict",
-                "visual_prompt": "Adorable chubby baby in diaper riding mini dairy cow on flower path, cow suddenly skids towards a giant messy mud puddle, baby eyes wide open in shock, 3d pixar animation",
-                "foley_sound_type": "whoosh",
-                "foley_description": "Playful trot into sudden skid sound"
+                "scene_index": 1,
+                "arc_phase": "Hook & Immediate Action",
+                "duration_sec": 2.5,
+                "diffusion_prompt": "Chubby laughing cute baby in diaper riding a tiny spotted miniature dairy cow on a flower path in a sunlit garden. Cow suddenly skids towards a giant mud puddle, baby eyes wide in shock, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "whoosh", "volume": 1.8},
+                    {"timestamp_sec": 1.5, "sfx": "slide_whistle_down", "volume": 2.0}
+                ]
             },
             {
-                "scene_number": 2,
-                "act_name": "The Comeback",
-                "visual_prompt": "Chubby baby bursts out laughing, twists cow's ear like motorcycle throttle, mini cow pops a wheelie and gracefully drifts sideways over the puddle, 3d pixar style",
-                "foley_sound_type": "boing",
-                "foley_description": "Springy dance bounce and engine rev boing"
+                "scene_index": 2,
+                "arc_phase": "Conflict Spike",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Cow sliding sideways in the sunlit garden, mud splashing violently. Chubby laughing cute baby in diaper screaming with absolute joy as they drift, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "clatter_thump", "volume": 2.2},
+                    {"timestamp_sec": 2.0, "sfx": "whoosh_fast", "volume": 1.8}
+                ]
             },
             {
-                "scene_number": 3,
-                "act_name": "Climax Payoff",
-                "visual_prompt": "Baby and mini cow stick a superhero landing on blooming flower bed wearing matching tiny sunglasses, giving high-fives with huge joyful smiles, 3d pixar animation",
-                "foley_sound_type": "ding",
-                "foley_description": "Achievement bell chime"
+                "scene_index": 3,
+                "arc_phase": "The Comeback",
+                "duration_sec": 2.5,
+                "diffusion_prompt": "Chubby laughing cute baby in diaper playfully twists the cow's ear like a motorcycle throttle. The miniature cow pops a heroic wheelie in the sunlit garden, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "mechanical_click", "volume": 2.0},
+                    {"timestamp_sec": 1.5, "sfx": "boing", "volume": 2.5}
+                ]
+            },
+            {
+                "scene_index": 4,
+                "arc_phase": "Rising Action 2",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Miniature cow doing aerial tricks and a backflip completely over the mud puddle in the sunlit garden. Chubby laughing cute baby in diaper holding on tight as flowers scatter in the wind, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "whoosh_high", "volume": 2.2},
+                    {"timestamp_sec": 1.5, "sfx": "whoosh", "volume": 2.0}
+                ]
+            },
+            {
+                "scene_index": 5,
+                "arc_phase": "Climax Payoff",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Epic superhero landing on the blooming flower bed in the sunlit garden. Chubby laughing cute baby in diaper and mini cow wearing matching tiny sunglasses, giving high-fives with huge smiles, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 1.0, "sfx": "bonk", "volume": 2.0},
+                    {"timestamp_sec": 2.0, "sfx": "ding_high_confirm", "volume": 2.5}
+                ]
             }
         ],
+        "audio_config": {"bgm_style": "bouncy_comedy_loop", "bgm_base_volume": 0.75, "target_loudnorm_lufs": -14.0},
         "music_vibe": "bouncy_comedy",
         "yt_title": "The Cutest Duo In History! 👶🐮❤️ #shorts #viral #cutebaby",
         "fb_title": "I cannot stop smiling at this! 😭🐮 Tag someone who needs cuteness today! 👇",
@@ -142,32 +279,71 @@ FALLBACK_CONCEPTS = [
     },
     {
         "title": "The Cockroach Family Dinner",
-        "niche": "Role Reversal / Ulti Duniya",
+        "niche": "Role Reversal",
         "character_name": "Papa Cockroach",
-        "character_description": "Anthropomorphic cartoon cockroach family wearing striped pajamas sitting around a dining table in a dollhouse, 3d pixar style",
+        "character_description": "Anthropomorphic cartoon cockroach father wearing striped pajamas, small glasses",
+        "protagonist": {
+            "name": "Papa Cockroach",
+            "visual_identity": "Anthropomorphic cartoon cockroach father wearing striped pajamas, small glasses"
+        },
+        "environment": "Cozy dining room inside a miniature wooden dollhouse",
         "scenes": [
             {
-                "scene_number": 1,
-                "act_name": "Hook -> Conflict",
-                "visual_prompt": "Cockroach family in pajamas enjoying tiny pie at dinner table, suddenly a giant cartoon human foot steps down right outside the window shaking the room, 3d pixar animation",
-                "foley_sound_type": "bonk",
-                "foley_description": "Heavy earthquake foot thud"
+                "scene_index": 1,
+                "arc_phase": "Hook & Immediate Action",
+                "duration_sec": 2.5,
+                "diffusion_prompt": "Anthropomorphic cartoon cockroach father wearing striped pajamas enjoying tiny pie at dinner table inside a miniature wooden dollhouse. Suddenly a giant cartoon human foot steps outside shaking the room, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 1.0, "sfx": "bonk", "volume": 2.8}
+                ]
             },
             {
-                "scene_number": 2,
-                "act_name": "The Comeback",
-                "visual_prompt": "Papa cockroach puts on tiny sunglasses, taps a remote control, and a miniature red sports car zooms into the dining room for emergency evacuation, 3d pixar style",
-                "foley_sound_type": "whoosh",
-                "foley_description": "Toy race car tire screech"
+                "scene_index": 2,
+                "arc_phase": "Conflict Spike",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Dollhouse dining room shaking violently. Tiny chandelier swinging, plates smashing on the floor. Anthropomorphic cartoon cockroach father wearing striped pajamas and family screaming in panic, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "crash_multi", "volume": 2.8},
+                    {"timestamp_sec": 2.0, "sfx": "clatter_multi", "volume": 2.5}
+                ]
             },
             {
-                "scene_number": 3,
-                "act_name": "Climax Payoff",
-                "visual_prompt": "Entire cockroach family in pajamas speeds away in the tiny convertible waving happily as human trips over broom in hilarious background fail, 3d pixar animation",
-                "foley_sound_type": "ding",
-                "foley_description": "Victory chime and happy horn beep"
+                "scene_index": 3,
+                "arc_phase": "The Comeback",
+                "duration_sec": 2.5,
+                "diffusion_prompt": "Anthropomorphic cartoon cockroach father wearing striped pajamas calmly taps a tiny remote control inside the dollhouse. A cool miniature red sports car zooms directly into the dining room, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "mechanical_click", "volume": 2.0},
+                    {"timestamp_sec": 1.5, "sfx": "whoosh_fast", "volume": 2.5}
+                ]
+            },
+            {
+                "scene_index": 4,
+                "arc_phase": "Rising Action 2",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Wild chase through the wooden dollhouse hallways. The red sports car driven by anthropomorphic cartoon cockroach father wearing striped pajamas dodges giant falling household objects, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "whoosh", "volume": 2.2},
+                    {"timestamp_sec": 1.8, "sfx": "object_drop", "volume": 2.5}
+                ]
+            },
+            {
+                "scene_index": 5,
+                "arc_phase": "Climax Payoff",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Anthropomorphic cartoon cockroach father wearing striped pajamas and family speed away safely in the tiny convertible waving happily, leaving the dollhouse behind in a cool exit, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "whoosh_high", "volume": 2.0},
+                    {"timestamp_sec": 1.5, "sfx": "ding_high_confirm", "volume": 2.5}
+                ]
             }
         ],
+        "audio_config": {"bgm_style": "bouncy_comedy_loop", "bgm_base_volume": 0.75, "target_loudnorm_lufs": -14.0},
         "music_vibe": "bouncy_comedy",
         "yt_title": "Inside A Cockroach's Emotional Dinner 😂🪳 #shorts #viral #animation",
         "fb_title": "When you realize cockroaches have family drama too! 😂🪳 Tag a friend who hates bugs!",
@@ -175,32 +351,72 @@ FALLBACK_CONCEPTS = [
     },
     {
         "title": "Princess Tomato's Kitchen Escape",
-        "niche": "Living Food & Objects",
+        "niche": "Living Food",
         "character_name": "Princess Tomato",
-        "character_description": "Giant glossy cute red tomato with big sparkling anime Pixar eyes, rosy blushing cheeks, wearing a red ribbon bow, 3d pixar animation",
+        "character_description": "Giant glossy cute red tomato with big sparkling anime Pixar eyes, rosy blushing cheeks, wearing a red ribbon bow",
+        "protagonist": {
+            "name": "Princess Tomato",
+            "visual_identity": "Giant glossy cute red tomato with big sparkling anime Pixar eyes, rosy blushing cheeks, wearing a red ribbon bow"
+        },
+        "environment": "Wooden cutting board on a granite kitchen counter",
         "scenes": [
             {
-                "scene_number": 1,
-                "act_name": "Hook -> Conflict",
-                "visual_prompt": "Glossy cute tomato with anime eyes and red bow on cutting board, chef's cleaver suddenly slams down inches away, tomato gasps in comical terror, 3d pixar animation",
-                "foley_sound_type": "bonk",
-                "foley_description": "Heavy blade slam and squeak"
+                "scene_index": 1,
+                "arc_phase": "Hook & Immediate Action",
+                "duration_sec": 2.5,
+                "diffusion_prompt": "Giant glossy cute red tomato with big sparkling anime Pixar eyes, wearing a red ribbon bow sitting on a wooden cutting board on a granite kitchen counter. A heavy chef's cleaver suddenly slams down inches away, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 1.5, "sfx": "bonk", "volume": 2.8}
+                ]
             },
             {
-                "scene_number": 2,
-                "act_name": "The Comeback",
-                "visual_prompt": "Cute tomato rolls backwards like an acrobat, puts on tiny black sunglasses, and hops onto a wooden butter knife to surf across the counter, 3d pixar animation",
-                "foley_sound_type": "whoosh",
-                "foley_description": "Countertop knife slide whoosh"
+                "scene_index": 2,
+                "arc_phase": "Conflict Spike",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Chef desperately chasing with the cleaver on the granite kitchen counter. Giant glossy cute red tomato with big sparkling anime Pixar eyes, wearing a red ribbon bow agilely dodging knives raining down, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "whoosh_fast", "volume": 2.0},
+                    {"timestamp_sec": 1.5, "sfx": "knife_chop", "volume": 2.5},
+                    {"timestamp_sec": 2.5, "sfx": "knife_chop", "volume": 2.5}
+                ]
             },
             {
-                "scene_number": 3,
-                "act_name": "Climax Payoff",
-                "visual_prompt": "Tomato ollies into a soft fruit basket, making a tiny peace sign with stem leaf while chef scratches head looking completely baffled, 3d pixar style",
-                "foley_sound_type": "ding",
-                "foley_description": "Cool reveal chime"
+                "scene_index": 3,
+                "arc_phase": "The Comeback",
+                "duration_sec": 2.5,
+                "diffusion_prompt": "Giant glossy cute red tomato with big sparkling anime Pixar eyes, wearing a red ribbon bow confidently puts on tiny black sunglasses and hops onto a wooden butter knife to surf, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 1.0, "sfx": "ding", "volume": 2.0},
+                    {"timestamp_sec": 1.8, "sfx": "whoosh", "volume": 2.2}
+                ]
+            },
+            {
+                "scene_index": 4,
+                "arc_phase": "Rising Action 2",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "The butter knife grinding along the granite counter edge sending bright sparks. Giant glossy cute red tomato with big sparkling anime Pixar eyes, wearing a red ribbon bow jumping over kitchen obstacles like a pro skater, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "sizzle", "volume": 2.0},
+                    {"timestamp_sec": 2.0, "sfx": "whoosh_high", "volume": 2.2}
+                ]
+            },
+            {
+                "scene_index": 5,
+                "arc_phase": "Climax Payoff",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Giant glossy cute red tomato with big sparkling anime Pixar eyes, wearing a red ribbon bow ollies perfectly into a soft fruit basket, making a tiny peace sign with a green stem leaf, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 1.0, "sfx": "boing", "volume": 1.8},
+                    {"timestamp_sec": 2.0, "sfx": "ding_high_confirm", "volume": 2.8}
+                ]
             }
         ],
+        "audio_config": {"bgm_style": "bouncy_comedy_loop", "bgm_base_volume": 0.75, "target_loudnorm_lufs": -14.0},
         "music_vibe": "bouncy_comedy",
         "yt_title": "Do NOT Slice The Princess! 🍅🎀😂 #shorts #viral #animation",
         "fb_title": "She was NOT going to become ketchup today! 😎🍅 Tag someone who loves cute things!",
@@ -210,30 +426,71 @@ FALLBACK_CONCEPTS = [
         "title": "Chef Leo's Crispy Chicken",
         "niche": "Cat Comedy",
         "character_name": "Chef Leo",
-        "character_description": "Chubby ginger cat wearing a white chef toque and headphones, 3d pixar animation style",
+        "character_description": "Chubby ginger cat wearing a white chef toque and headphones",
+        "protagonist": {
+            "name": "Chef Leo",
+            "visual_identity": "Chubby ginger cat wearing a white chef toque and headphones"
+        },
+        "environment": "Professional stainless steel restaurant kitchen",
         "scenes": [
             {
-                "scene_number": 1,
-                "act_name": "Hook -> Conflict",
-                "visual_prompt": "Chubby ginger cat chef rapidly dicing chicken, pan suddenly catches giant fire with flames shooting to ceiling, cat eyes popping in panic, 3d pixar style",
-                "foley_sound_type": "sizzle",
-                "foley_description": "Violent oil fire sizzle"
+                "scene_index": 1,
+                "arc_phase": "Hook & Immediate Action",
+                "duration_sec": 2.5,
+                "diffusion_prompt": "Chubby ginger cat wearing a white chef toque and headphones rapidly dicing chicken in a professional stainless steel restaurant kitchen. The cooking pan suddenly catches giant fire, flames shooting up, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "knife_chop", "volume": 2.0},
+                    {"timestamp_sec": 1.5, "sfx": "sizzle", "volume": 2.8}
+                ]
             },
             {
-                "scene_number": 2,
-                "act_name": "The Comeback",
-                "visual_prompt": "Cat chef snaps on welding goggles, flips the fiery wok into the air, and catches every crispy chicken tender back into the pan in one slick move, 3d pixar",
-                "foley_sound_type": "whoosh",
-                "foley_description": "Acrobatic pan flip whoosh"
+                "scene_index": 2,
+                "arc_phase": "Conflict Spike",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Fire spreading to curtains in the professional stainless steel restaurant kitchen, ceiling sprinklers going off raining water. Chubby ginger cat wearing a white chef toque and headphones slipping comically on the wet floor, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "rising_hum", "volume": 2.0},
+                    {"timestamp_sec": 2.0, "sfx": "clatter_thump", "volume": 2.5}
+                ]
             },
             {
-                "scene_number": 3,
-                "act_name": "Climax Payoff",
-                "visual_prompt": "Cat chef munches on giant golden crispy fried chicken drumstick with supreme joyful swagger, crumbs flying, triumph smile, 3d pixar style",
-                "foley_sound_type": "crunch",
-                "foley_description": "Crispy chicken crunch and ending service bell ding"
+                "scene_index": 3,
+                "arc_phase": "The Comeback",
+                "duration_sec": 2.5,
+                "diffusion_prompt": "Chubby ginger cat wearing a white chef toque and headphones suddenly snaps on cool dark welding goggles and powerfully flips the fiery wok into the air, splashing water everywhere, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "mechanical_click", "volume": 2.5},
+                    {"timestamp_sec": 1.5, "sfx": "whoosh_fast", "volume": 2.5}
+                ]
+            },
+            {
+                "scene_index": 4,
+                "arc_phase": "Rising Action 2",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Crispy chicken tenders flying in a glorious slow-motion arc through the professional stainless steel restaurant kitchen. Chubby ginger cat wearing a white chef toque and headphones expertly catching each one mid-air with tongs, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 0.5, "sfx": "whoosh", "volume": 1.8},
+                    {"timestamp_sec": 1.5, "sfx": "whoosh", "volume": 1.8},
+                    {"timestamp_sec": 2.5, "sfx": "ding", "volume": 2.0}
+                ]
+            },
+            {
+                "scene_index": 5,
+                "arc_phase": "Climax Payoff",
+                "duration_sec": 3.0,
+                "diffusion_prompt": "Chubby ginger cat wearing a white chef toque and headphones munches on a giant golden crispy fried chicken drumstick with supreme joyful swagger in the professional stainless steel restaurant kitchen. Crumbs flying, triumph smile, hyper-detailed 3d pixar animation style.",
+                "negative_prompt": "static, blurry, 2D, talking, watermark, text, low quality",
+                "foley_cues": [
+                    {"timestamp_sec": 1.0, "sfx": "crunch", "volume": 2.8},
+                    {"timestamp_sec": 2.0, "sfx": "ding_high_confirm", "volume": 2.5}
+                ]
             }
         ],
+        "audio_config": {"bgm_style": "bouncy_comedy_loop", "bgm_base_volume": 0.75, "target_loudnorm_lufs": -14.0},
         "music_vibe": "bouncy_comedy",
         "yt_title": "Chef Leo Cooks A Masterpiece! 🍗🐾 #shorts #viral #funnycats",
         "fb_title": "He took his cooking shift WAY too seriously! 😂🍗 Tag someone who loves fried chicken!",
@@ -244,7 +501,7 @@ FALLBACK_CONCEPTS = [
 def generate_viral_story_concept(rlaf_feedback: Optional[Dict] = None) -> Dict:
     """
     Uses Gemini / Qwen-72B to autonomously brainstorm ultra-viral surrealist AI animated short stories
-    (inspired by 10M-80M view trends: Shark chefs, Ulti Duniya cockroach families, Baby & animal duos, Living food).
+    following the strict 5-Act Universal Two-Wave Conflict Arc with protagonist/environment lock.
     """
     api_keys = [
         os.environ.get("GEMINI_API_KEY"),
@@ -264,8 +521,11 @@ def generate_viral_story_concept(rlaf_feedback: Optional[Dict] = None) -> Dict:
         if summary or top_cats:
             feedback_context = f"\nChannel Specific Feedback:\n- Summary: {summary}\n- Top Performing on Your Channel: {top_cats}"
 
-    prompt = f"""You are the Executive Creative Director for viral AI animated YouTube Shorts and Facebook Reels (producing 10M to 80M+ view hits).
-Your mission is to look at GLOBAL TRENDING MARKET DATA (what is getting 10M-80M views right now across YouTube Shorts) combined with channel audience feedback to design the ultimate high-retention Short:
+    prompt = f"""You are an expert Pixar-grade visual storyteller and viral retention director for AI animated YouTube Shorts and Facebook Reels (producing 10M to 80M+ view hits).
+
+Your task is to output a single, cohesive, self-contained mini-movie (14 seconds) strictly structured around the Universal Two-Wave Conflict Arc.
+
+Never generate disjointed scenes, random clips, montage cuts, or talking-head intros. Every story must feature a clear single protagonist, continuous object/environment permanence, and 100% visual/physical comedy (zero spoken dialogue).
 
 === 1. CURRENT GLOBAL VIRAL MARKET INTELLIGENCE ===
 {market_context}
@@ -273,27 +533,46 @@ Your mission is to look at GLOBAL TRENDING MARKET DATA (what is getting 10M-80M 
 === 2. CHANNEL AUDIENCE DATA ===
 {feedback_context or "Channel is in growth phase. Prioritize the high-velocity Global Trends above!"}
 
-=== 3. MANDATORY CREATIVE DIRECTIVES (THE 2-WAVE CONFLICT ARC) ===
-Every video must strictly follow the viral "CONFLICT ARC" algorithm curve (Progression vs. Intensity):
-1. Universal visual humor & shock / awe / WTF hook (ZERO spoken voiceover / dialogue).
-2. Exactly 3 interconnected visual scenes with character consistency following the 2-wave curve:
-   - Act 1: "Hook -> Conflict" (0s-3s):
-     * Hook (0-1s): Immediate visual shock mid-action (in media res).
-     * Rising Action -> Conflict (1-3s): Tension builds fast into a crisis, obstacle, or disaster (First Intensity Peak).
-   - Act 2: "The Comeback" (3s-6s):
-     * The Comeback (Trough to Pivot): The character refuses to lose! They pull off an unexpected counter-move, bizarre secret tool, or hilarious pivot that flips the crisis on its head.
-   - Act 3: "Climax Payoff" (6s-9s):
-     * Rising Action -> Climax Payoff (6-9s): Intensity skyrockets to the highest peak on the chart, ending in an explosive, hilarious punchline, triumphant boss moment, or mind-blowing resolution.
-3. Model after the highest-velocity global formats:
-   - Surreal Anthropomorphic (e.g., Muscular Shark chef slicing a sneaker, Crocodile dentist)
-   - Adorable Baby & Animal Companions (e.g., Chubby cute baby riding a mini cow, Baby on giant pelican)
-   - Living Cartoon Food & Objects with huge expressive Pixar eyes (e.g., Giant glossy red tomato escaping knife)
-   - "Ulti Duniya" / Absurd Role Reversal (e.g., Cockroach family in pajamas having dinner)
-   - Animal Slapstick / Food ASMR (e.g., Cat chef, Hamster bakery escape)
-4. Style: Always describe as "hyper-detailed 3d pixar animation style, cinematic lighting, expressive facial features, 8k resolution, vivid colors".
-5. Specific Foley sound effect requirements for each scene (choose from: whoosh, bonk, quack, bark, crunch, meow, sizzle, boing, knife_chop, ding).
+=== 3. CORE RULES OF CONTINUITY & ARC DYNAMICS ===
 
-Return valid JSON conforming strictly to the ViralStoryScript schema.
+1. **Protagonist Lock:** Pick ONE distinct character (e.g., Hamster Chef, Baby Dino, Robot Barista). Visual attributes, clothing, and props must persist across ALL 5 acts.
+2. **Environment Lock:** The entire short takes place in ONE contiguous set (e.g., kitchen counter, workshop, living room rug).
+3. **The Conflict Arc Curve (Strict 5-Act Scene Breakdown):**
+   - Act 1: Hook & Immediate Action (0.0s - 2.5s): Start in media res. Protagonist mid-task when instant anomaly triggers. Zero setup. Dynamic Foley hits within 0.5s.
+   - Act 2: Conflict Spike (2.5s - 5.5s): Anomaly escalates into severe crisis. Initial fix attempt FAILS causing maximum visual chaos. Escalating SFX.
+   - Act 3: The Comeback (5.5s - 8.0s): Low point turns into pivot. Protagonist takes unexpected clever counter-action. Brief tension drop with precise tactile Foley.
+   - Act 4: Rising Action 2 (8.0s - 11.0s): Rapid acceleration. Counter-move triggers overwhelming chain reaction. Rapid layered SFX crescendo.
+   - Act 5: Climax & Twist Payoff (11.0s - 14.0s): Chaos resolves in unexpected triumphant or ironic punchline. Final frame holds comedic reaction for looping. Resolution chime/ding.
+
+4. Model after highest-velocity global formats:
+   - Surreal Anthropomorphic (Muscular Shark chef, Crocodile dentist)
+   - Adorable Baby & Animal Companions (Baby riding mini cow, Baby on pelican)
+   - Living Cartoon Food & Objects with Pixar eyes (Tomato escaping knife)
+   - "Ulti Duniya" / Absurd Role Reversal (Cockroach family dinner)
+   - Animal Slapstick / Food ASMR (Cat chef, Hamster bakery)
+
+5. Style: "hyper-detailed 3d pixar animation style, cinematic lighting, expressive facial features, 8k resolution, vivid colors"
+
+6. Available Foley SFX (choose ONLY from this palette): whoosh, whoosh_fast, whoosh_high, bonk, boing, ding, ding_high_confirm, crunch, sizzle, meow, bark, quack, knife_chop, mechanical_click, clatter_thump, clatter_multi, crash_multi, rising_hum, slide_whistle_down, object_drop
+
+=== 4. OUTPUT FORMAT (STRICT JSON) ===
+Return valid JSON with this exact structure:
+- story_title: string
+- protagonist: object with "name" and "visual_identity" (detailed physical description for prompt consistency)
+- environment: detailed background set description
+- niche: category string
+- scenes: array of exactly 5 scenes, each with:
+  - scene_index: 1-5
+  - arc_phase: one of "Hook & Immediate Action", "Conflict Spike", "The Comeback", "Rising Action 2", "Climax Payoff"
+  - duration_sec: 2.5, 3.0, 2.5, 3.0, 3.0 respectively
+  - diffusion_prompt: "Cinematic 3D animation, [visual_identity] in [environment], [specific action], hyper-detailed 3d pixar animation style, cinematic lighting, 8k"
+  - negative_prompt: "static, blurry, 2D, talking, watermark, text, low quality"
+  - foley_cues: array of 2-3 cues, each with timestamp_sec (relative to scene start), sfx (from palette), volume (1.5-2.8)
+- audio_config: object with bgm_style, bgm_base_volume (0.75), target_loudnorm_lufs (-14.0)
+- music_vibe: "bouncy_comedy"
+- yt_title: viral YouTube title with emojis and #shorts #viral
+- fb_title: Facebook engagement caption under 120 chars
+- tags: array of relevant hashtag strings
 """
 
     for k in api_keys:
@@ -308,7 +587,7 @@ Return valid JSON conforming strictly to the ViralStoryScript schema.
                 }
             )
             data = json.loads(response.text)
-            print(f"[STORY DIRECTOR] Conceived new story via Gemini: '{data.get('title')}' in niche '{data.get('niche')}'")
+            print(f"[STORY DIRECTOR] Conceived new 5-act story via Gemini: '{data.get('story_title', data.get('title'))}' in niche '{data.get('niche')}'")
             return data
         except Exception as e:
             print(f"[STORY DIRECTOR] Gemini notice: {e}")
@@ -320,11 +599,11 @@ Return valid JSON conforming strictly to the ViralStoryScript schema.
             from huggingface_hub import InferenceClient
             import re
             hf_client = InferenceClient(api_key=hf_token)
-            hf_prompt = prompt + "\nOutput strictly valid JSON with keys: title, niche, character_name, character_description, scenes (with scene_number, act_name, visual_prompt, foley_sound_type, foley_description), music_vibe, yt_title, fb_title, tags. No markdown formatting."
+            hf_prompt = prompt + "\nOutput strictly valid JSON. No markdown formatting, no code fences. Just raw JSON."
             res = hf_client.chat.completions.create(
                 messages=[{"role": "user", "content": hf_prompt}],
                 model="Qwen/Qwen2.5-72B-Instruct",
-                max_tokens=1200,
+                max_tokens=2500,
                 temperature=0.85
             )
             raw = res.choices[0].message.content.strip()
@@ -332,7 +611,7 @@ Return valid JSON conforming strictly to the ViralStoryScript schema.
             raw = re.sub(r"^```\s*", "", raw)
             raw = re.sub(r"\s*```$", "", raw)
             data = json.loads(raw.strip())
-            print(f"[STORY DIRECTOR] Conceived new story via Qwen-72B: '{data.get('title')}' in niche '{data.get('niche')}'")
+            print(f"[STORY DIRECTOR] Conceived new 5-act story via Qwen-72B: '{data.get('story_title', data.get('title'))}' in niche '{data.get('niche')}'")
             return data
         except Exception as e:
             print(f"[STORY DIRECTOR] Hugging Face Qwen-72B notice: {e}")
@@ -344,10 +623,10 @@ Return valid JSON conforming strictly to the ViralStoryScript schema.
 
 def render_story_video(story: Dict, output_path: str) -> Optional[str]:
     """
-    Renders the 3-act story into a complete 1080x1920 Short:
-    - Generates 3 real AI video diffusion scenes.
-    - Synchronizes real Foley sound effects for each scene.
-    - Adds ducked comedy background music.
+    Renders a 5-act story into a complete 1080x1920 Short:
+    - Generates 5 real AI video diffusion scenes with negative_prompt quality control.
+    - Synchronizes per-scene Foley sound effects at millisecond precision.
+    - Adds ducked comedy background music with EBU R128 loudnorm.
     - Concatenates and encodes final high-bitrate MP4.
     """
     os.makedirs("data/temp", exist_ok=True)
@@ -362,29 +641,28 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
     used_motion_fallback = False
 
     for idx, sc in enumerate(scenes):
-        num = sc.get("scene_number", sc.get("scene_index", idx + 1))
-        p = sc.get("visual_prompt", sc.get("diffusion_prompt", ""))
-        act = sc.get("act_name", sc.get("arc_phase", f"Act {num}"))
+        num = sc.get("scene_index", sc.get("scene_number", idx + 1))
+        p = sc.get("diffusion_prompt", sc.get("visual_prompt", ""))
+        neg_p = sc.get("negative_prompt", None)
+        act = sc.get("arc_phase", sc.get("act_name", f"Act {num}"))
         sc_dur = float(sc.get("duration_sec", 2.8 if idx < len(scenes) - 1 else 3.0))
         sc_out = os.path.join("data", "temp", f"story_scene_{num}.mp4")
 
-        print(f"[STORY DIRECTOR] Generating Scene {num} ({act}): {p[:60]}...")
-        vid_path = generate_ai_video_from_prompt(p, sc_out, duration=int(math.ceil(sc_dur)))
+        print(f"[STORY DIRECTOR] Generating Scene {num}/{len(scenes)} ({act}): {p[:80]}...")
+        vid_path = generate_ai_video_from_prompt(p, sc_out, duration=int(math.ceil(sc_dur)), negative_prompt=neg_p)
         if not vid_path or not os.path.exists(vid_path):
-            print(f"[STORY DIRECTOR] Warning: Scene {num} generation issue. Retrying with fallback...")
-            # Fallback to permanent neural motion assets if available
-            fallback_map = {
-                1: os.path.join("data", "assets", "motion_fallback", "scene1.mp4"),
-                2: os.path.join("data", "assets", "motion_fallback", "scene2.mp4"),
-                3: os.path.join("data", "assets", "motion_fallback", "scene3.mp4")
-            }
-            fb_path = fallback_map.get(num, fallback_map.get((num - 1) % 3 + 1))
+            print(f"[STORY DIRECTOR] Warning: Scene {num} generation issue. Using motion fallback...")
+            # Fallback to permanent neural motion assets (3 clips wrap for 5 scenes: 1→2→3→2→3)
+            fallback_files = ["scene1.mp4", "scene2.mp4", "scene3.mp4"]
+            fb_idx = idx % len(fallback_files)
+            fb_path = os.path.join("data", "assets", "motion_fallback", fallback_files[fb_idx])
             if fb_path and os.path.exists(fb_path):
                 print(f"[STORY DIRECTOR] Using motion fallback asset for Scene {num}: {fb_path}")
                 shutil.copy2(fb_path, sc_out)
                 vid_path = sc_out
                 used_motion_fallback = True
             else:
+                print(f"[STORY DIRECTOR] No fallback asset available for Scene {num}. Skipping.")
                 return None
 
         # Format scene to 1080x1920 30fps with exact duration
@@ -399,50 +677,23 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
     # If fallback pack was used, align story metadata and audio timeline 200% with the footage
     if used_motion_fallback:
         print("[STORY DIRECTOR] Fallback motion used. Synchronizing story metadata & audio cues 100% with Golden Egg footage...")
+        # Use the first FALLBACK_CONCEPT (Golden Egg) which has proper 5-act foley_cues
+        golden_egg = FALLBACK_CONCEPTS[0]
         story.update({
-            "title": "Hamster Chef & The Anti-Gravity Golden Egg",
-            "character_name": "Chester the Hamster Chef",
-            "niche": "Animal Slapstick & Food Magic",
-            "music_vibe": "bouncy_comedy",
-            "scenes": [
-                {
-                    "scene_number": 1,
-                    "act_name": "Hook -> Conflict",
-                    "visual_prompt": "Cute chubby hamster chef curiously inspects glowing golden egg on counter, triggering zero-gravity kitchen chaos",
-                    "foley_sound_type": "clatter_thump",
-                    "foley_description": "Whoosh, levitation hum, and zero-G kitchen pans crashing",
-                    "impact_offset": 1.5
-                },
-                {
-                    "scene_number": 2,
-                    "act_name": "The Comeback",
-                    "visual_prompt": "Hamster chef slams red A-GRAV REVERSE wall button and positions strainer net to catch",
-                    "foley_sound_type": "mechanical_click",
-                    "foley_description": "Mechanical button click, boing shockwave, and net catch whoosh",
-                    "impact_offset": 3.4
-                },
-                {
-                    "scene_number": 3,
-                    "act_name": "Climax Payoff",
-                    "visual_prompt": "Golden egg caught cleanly in strainer with glowing halo, hamster beams proudly with rosy cheeks",
-                    "foley_sound_type": "ding_high_confirm",
-                    "foley_description": "Triumphant golden chime ding and victory celebration",
-                    "impact_offset": 6.6
-                }
-            ],
-            "audio_cues": [
-                {"sound": "whoosh", "offset": 0.2, "volume": 2.2, "duration": 0.8},
-                {"sound": "rising_hum", "offset": 0.7, "volume": 2.8, "duration": 1.0},
-                {"sound": "clatter_thump", "offset": 1.5, "volume": 2.5, "duration": 1.6},
-                {"sound": "mechanical_click", "offset": 3.4, "volume": 3.0, "duration": 0.6},
-                {"sound": "boing", "offset": 3.9, "volume": 2.2, "duration": 1.0},
-                {"sound": "whoosh", "offset": 4.5, "volume": 2.2, "duration": 0.8},
-                {"sound": "ding_high_confirm", "offset": 6.6, "volume": 2.8, "duration": 1.8}
-            ],
-            "yt_title": "Hamster Chef vs The Anti-Gravity Golden Egg! 🐹🥚✨ #shorts #animation #viral #funny",
-            "fb_title": "He was NOT expecting the egg to do THAT! 😱🍳 Look at his reaction at the end! 😂 Tag a friend!",
-            "tags": ["shorts", "hamster", "animation", "3danimation", "pixar", "comedy", "viral", "funny", "goldenegg"]
+            "title": golden_egg["title"],
+            "character_name": golden_egg["character_name"],
+            "niche": golden_egg["niche"],
+            "protagonist": golden_egg["protagonist"],
+            "environment": golden_egg["environment"],
+            "music_vibe": golden_egg["music_vibe"],
+            "scenes": golden_egg["scenes"],
+            "audio_config": golden_egg["audio_config"],
+            "yt_title": golden_egg["yt_title"],
+            "fb_title": golden_egg["fb_title"],
+            "tags": golden_egg["tags"]
         })
+        # Recalculate scenes reference after update
+        scenes = story.get("scenes", [])
 
     # Concatenate video scenes
     concat_txt = "data/temp/director_concat.txt"
@@ -474,7 +725,7 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
     subprocess.run(cmd_mux, check=True)
 
     if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
-        print(f"[STORY DIRECTOR] Successfully rendered 3-scene story: {output_path}")
+        print(f"[STORY DIRECTOR] Successfully rendered {len(rendered_scene_vids)}-scene story: {output_path}")
         return output_path
     return None
 

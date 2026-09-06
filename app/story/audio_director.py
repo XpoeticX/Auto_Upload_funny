@@ -96,6 +96,21 @@ SOUND_ALIASES = {
     "crash_multi": "clatter_thump.mp3",
     "slide_whistle_down": "slide_whistle_down.mp3",
     "whistle": "slide_whistle_down.mp3",
+    "sizzle_loud": "sizzle.mp3",
+    "snap": "bonk.mp3",
+    "rev": "whoosh.mp3",
+    "engine": "whoosh.mp3",
+    "stomp": "bonk.mp3",
+    "earthquake": "clatter_thump.mp3",
+    "rumble": "clatter_thump.mp3",
+    "splatter": "bonk.mp3",
+    "catch": "whoosh.mp3",
+    "land": "bonk.mp3",
+    "chomp": "crunch.mp3",
+    "munch": "crunch.mp3",
+    "gasp": "whoosh.mp3",
+    "pop": "boing.mp3",
+    "ollie": "whoosh.mp3",
 }
 
 def generate_synthetic_fallback(out_path: str, duration: float = 1.5, freq: int = 500) -> str:
