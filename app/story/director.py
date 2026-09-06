@@ -4,6 +4,7 @@ import time
 import subprocess
 import shutil
 import re
+import math
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 from google import genai
@@ -360,13 +361,15 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
     rendered_scene_vids = []
     used_motion_fallback = False
 
-    for sc in scenes:
-        num = sc.get("scene_number", 1)
-        p = sc.get("visual_prompt", "")
+    for idx, sc in enumerate(scenes):
+        num = sc.get("scene_number", sc.get("scene_index", idx + 1))
+        p = sc.get("visual_prompt", sc.get("diffusion_prompt", ""))
+        act = sc.get("act_name", sc.get("arc_phase", f"Act {num}"))
+        sc_dur = float(sc.get("duration_sec", 2.8 if idx < len(scenes) - 1 else 3.0))
         sc_out = os.path.join("data", "temp", f"story_scene_{num}.mp4")
 
-        print(f"[STORY DIRECTOR] Generating Scene {num} ({sc.get('act_name')}): {p[:60]}...")
-        vid_path = generate_ai_video_from_prompt(p, sc_out, duration=3)
+        print(f"[STORY DIRECTOR] Generating Scene {num} ({act}): {p[:60]}...")
+        vid_path = generate_ai_video_from_prompt(p, sc_out, duration=int(math.ceil(sc_dur)))
         if not vid_path or not os.path.exists(vid_path):
             print(f"[STORY DIRECTOR] Warning: Scene {num} generation issue. Retrying with fallback...")
             # Fallback to permanent neural motion assets if available
@@ -375,7 +378,7 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
                 2: os.path.join("data", "assets", "motion_fallback", "scene2.mp4"),
                 3: os.path.join("data", "assets", "motion_fallback", "scene3.mp4")
             }
-            fb_path = fallback_map.get(num)
+            fb_path = fallback_map.get(num, fallback_map.get((num - 1) % 3 + 1))
             if fb_path and os.path.exists(fb_path):
                 print(f"[STORY DIRECTOR] Using motion fallback asset for Scene {num}: {fb_path}")
                 shutil.copy2(fb_path, sc_out)
@@ -384,12 +387,12 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
             else:
                 return None
 
-        # Format scene to 1080x1920 30fps
+        # Format scene to 1080x1920 30fps with exact duration
         sc_fmt = os.path.join("data", "temp", f"story_scene_{num}_fmt.mp4")
         subprocess.run([
             "ffmpeg", "-y", "-i", vid_path,
             "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
-            "-t", "2.8" if num < 3 else "3.0", "-r", "30", "-c:v", "libx264", "-pix_fmt", "yuv420p", sc_fmt
+            "-t", str(sc_dur), "-r", "30", "-c:v", "libx264", "-pix_fmt", "yuv420p", sc_fmt
         ], check=True)
         rendered_scene_vids.append(sc_fmt)
 
@@ -455,7 +458,7 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
 
     # Dynamic Foley & Music Generation tailored 200% to this specific story and motion
     master_audio = os.path.join("data", "temp", "story_master_audio.wav")
-    total_dur = 2.8 * (len(scenes) - 1) + 3.0
+    total_dur = sum(float(sc.get("duration_sec", 2.8 if idx < len(scenes) - 1 else 3.0)) for idx, sc in enumerate(scenes))
     build_scene_audio_timeline(story, total_duration=total_dur, output_wav=master_audio)
 
     cmd_mux = [

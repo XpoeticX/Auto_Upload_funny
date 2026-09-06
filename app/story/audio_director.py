@@ -88,6 +88,14 @@ SOUND_ALIASES = {
     "triumph": "ding_high_confirm.mp3",
     "confirm": "ding_high_confirm.mp3",
     "ding_high_confirm": "ding_high_confirm.mp3",
+    "whoosh_fast": "whoosh.mp3",
+    "whoosh_high": "whoosh.mp3",
+    "object_drop": "bonk.mp3",
+    "drop": "bonk.mp3",
+    "clatter_multi": "clatter_thump.mp3",
+    "crash_multi": "clatter_thump.mp3",
+    "slide_whistle_down": "slide_whistle_down.mp3",
+    "whistle": "slide_whistle_down.mp3",
 }
 
 def generate_synthetic_fallback(out_path: str, duration: float = 1.5, freq: int = 500) -> str:
@@ -197,19 +205,46 @@ def build_scene_audio_timeline(story: Dict, total_duration: float = 8.6, output_
     - Ducks background music under the Foley punches.
     """
     scenes = story.get("scenes", [])
-    music_vibe = story.get("music_vibe", "bouncy_comedy")
+    audio_cfg = story.get("audio_config", {})
+    music_vibe = audio_cfg.get("bgm_style", story.get("music_vibe", "bouncy_comedy"))
+    bgm_vol = audio_cfg.get("bgm_base_volume", 0.75)
+    target_lufs = audio_cfg.get("target_loudnorm_lufs", -14.0)
+
     bgm_path = resolve_music_track(music_vibe)
 
     inputs = ["-i", bgm_path]
     filter_parts = []
     mix_inputs = ["[bgm]"]
     # Background music energetic bed (full energy, continuous comedy rhythm)
-    filter_parts.append(f"[0:a]volume=0.75,atrim=0:{total_duration},asetpts=PTS-STARTPTS[bgm]")
+    filter_parts.append(f"[0:a]volume={bgm_vol},atrim=0:{total_duration},asetpts=PTS-STARTPTS[bgm]")
     input_idx = 1
 
-    # If story specifies a multi-cue audio timeline (200% synchronized micro-timing)
-    custom_cues = story.get("audio_cues")
-    if custom_cues:
+    # Check if new 5-act schema with per-scene foley_cues is present
+    has_scene_foley_cues = any(bool(sc.get("foley_cues")) for sc in scenes)
+    if has_scene_foley_cues:
+        current_time = 0.0
+        for sc in scenes:
+            scene_dur = float(sc.get("duration_sec", 2.5))
+            cues = sc.get("foley_cues", [])
+            for cue in cues:
+                sound_name = cue.get("sfx", "bonk")
+                sfx_path = resolve_foley_sound(sound_name)
+                inputs.extend(["-i", sfx_path])
+                rel_t = float(cue.get("timestamp_sec", 0.0))
+                abs_t = current_time + rel_t
+                delay_ms = int(abs_t * 1000)
+                vol = float(cue.get("volume", 2.0))
+                dur = float(cue.get("duration", 1.5))
+                label = f"cue{input_idx}"
+                filter_parts.append(
+                    f"[{input_idx}:a]volume={vol},atrim=0:{dur},asetpts=PTS-STARTPTS,adelay={delay_ms}|{delay_ms}[{label}]"
+                )
+                mix_inputs.append(f"[{label}]")
+                input_idx += 1
+            current_time += scene_dur
+    elif story.get("audio_cues"):
+        # Custom multi-cue audio timeline (200% synchronized micro-timing)
+        custom_cues = story.get("audio_cues")
         for idx, cue in enumerate(custom_cues):
             sound_type = cue.get("sound", "bonk")
             sfx_path = resolve_foley_sound(sound_type)
@@ -225,10 +260,7 @@ def build_scene_audio_timeline(story: Dict, total_duration: float = 8.6, output_
             mix_inputs.append(f"[{label}]")
             input_idx += 1
     else:
-        # Scene timing partitions aligned to the Conflict Arc action climax:
-        # Scene 1: 0.0s -> 2.8s (Visual Action Climax: 1.2s)
-        # Scene 2: 2.8s -> 5.6s (Visual Action Climax: 4.0s)
-        # Scene 3: 5.6s -> 8.6s (Visual Action Climax: 6.8s)
+        # Default scene timing partitions aligned to the Conflict Arc action climax
         default_offsets = [1.2, 4.0, 6.8]
 
         for i, sc in enumerate(scenes[:3]):
@@ -257,11 +289,11 @@ def build_scene_audio_timeline(story: Dict, total_duration: float = 8.6, output_
                 mix_inputs.append("[ding_finish]")
                 input_idx += 1
 
-    # Final amix with normalize=0 (prevents volume crush) + loudnorm (-14 LUFS YouTube broadcast standard)
+    # Final amix with normalize=0 (prevents volume crush) + loudnorm target
     amix_str = (
         "".join(mix_inputs)
         + f"amix=inputs={len(mix_inputs)}:duration=first:dropout_transition=0:normalize=0,"
-        + "loudnorm=I=-14:TP=-1.5:LRA=7[aout]"
+        + f"loudnorm=I={target_lufs}:TP=-1.5:LRA=7[aout]"
     )
     filter_parts.append(amix_str)
 
