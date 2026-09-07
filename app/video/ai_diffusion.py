@@ -1,4 +1,4 @@
-﻿import os
+import os
 import random
 import math
 import subprocess
@@ -46,7 +46,7 @@ def generate_hero_keyframe(
 
     for idx, token in enumerate(tokens):
         try:
-            client = Client(FLUX_SPACE, hf_token=token) if token else Client(FLUX_SPACE)
+            client = Client(FLUX_SPACE, token=token) if token else Client(FLUX_SPACE)
             result = client.predict(
                 prompt=prompt,
                 seed=random.randint(0, 2**32 - 1),
@@ -94,7 +94,7 @@ def generate_ai_video_from_image(
 
     for idx, token in enumerate(tokens):
         try:
-            client = Client(SPACE_NAME, hf_token=token) if token else Client(SPACE_NAME)
+            client = Client(SPACE_NAME, token=token) if token else Client(SPACE_NAME)
             result = client.predict(
                 prompt=scene_prompt,
                 negative_prompt=neg,
