@@ -42,6 +42,19 @@ def generate_hero_keyframe(
     across all 5 acts of the story.
     """
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+
+    # Tier 0: Gemini Pro browser generation (Pixar 3D quality, 100% free via user's Pro plan)
+    try:
+        from app.video.gemini_browser import generate_image_via_browser
+        browser_img = generate_image_via_browser(prompt, output_path, timeout_sec=90)
+        if browser_img and os.path.exists(browser_img) and os.path.getsize(browser_img) > 10000:
+            print(f"[HERO KEYFRAME] Successfully generated protagonist reference via Gemini Pro: {output_path}")
+            return output_path
+        else:
+            print("[HERO KEYFRAME] Gemini Pro browser returned no image. Falling back to FLUX.1...")
+    except Exception as e:
+        print(f"[HERO KEYFRAME] Gemini Pro browser notice: {e}. Falling back to FLUX.1...")
+
     tokens = get_hf_token_pool()
 
     for idx, token in enumerate(tokens):

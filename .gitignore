@@ -12,3 +12,4 @@ token.json
 client_secrets*.json
 *.env
 .env
+data/browser_profile/
