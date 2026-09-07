@@ -103,7 +103,7 @@ def generate_ai_video_from_image(
     """
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     tokens = get_hf_token_pool()
-    neg = negative_prompt or "blurry, distorted, low quality, static, frozen, deformed hands, watermark, text"
+    neg = negative_prompt or "watermark, text, logo, signature, copyright, timestamp, subtitle, caption, letters, words, blurry, distorted, low quality, static, frozen, deformed hands"
 
     for idx, token in enumerate(tokens):
         try:
@@ -155,7 +155,7 @@ def generate_ai_video_from_prompt(prompt: str, output_path: str, duration: int =
     """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     tokens = get_hf_token_pool()
-    neg = negative_prompt or "worst quality, inconsistent motion, blurry, jittery, distorted, static, 2D, talking, watermark, text, low quality"
+    neg = negative_prompt or "watermark, text, logo, signature, copyright, timestamp, subtitle, caption, letters, words, worst quality, inconsistent motion, blurry, jittery, distorted, static, 2D, low quality"
 
     for idx, token in enumerate(tokens):
         try:
