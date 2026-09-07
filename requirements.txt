@@ -13,3 +13,4 @@ pydantic
 edge-tts
 gradio_client
 huggingface_hub
+numpy
