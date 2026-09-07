@@ -661,7 +661,7 @@ Return valid JSON with this exact structure:
         try:
             client = genai.Client(api_key=k)
             response = client.models.generate_content(
-                model="gemini-3.5-flash",
+                model="gemini-3.8-flash",
                 contents=prompt,
                 config={
                     "response_mime_type": "application/json",

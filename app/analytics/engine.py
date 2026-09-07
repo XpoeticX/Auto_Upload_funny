@@ -439,14 +439,13 @@ def run_meta_optimizer(category: str, platform: str = "youtube", epsilon: float 
     ]
     api_keys = [k for k in api_keys if k and str(k).strip() != "None"]
     
-    # Model Waterfall: Best model first (3.7 -> 3.6 -> 3.5 -> 2.5 -> 2.0 -> 1.5)
+    # Model Waterfall: Best model first (3.8 -> 3.7 -> 3.6 -> 3.5 -> 2.5)
     model_names = [
+        "gemini-3.8-flash",
         "gemini-3.7-flash",
         "gemini-3.6-flash",
         "gemini-3.5-flash",
         "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash"
     ]
     
     global _LOCKED_KEY_INDEX
