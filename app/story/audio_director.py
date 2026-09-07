@@ -234,46 +234,62 @@ def build_scene_audio_timeline(story: Dict, total_duration: float = 8.6, output_
     filter_parts.append(f"[0:a]volume={bgm_vol},atrim=0:{total_duration},asetpts=PTS-STARTPTS[bgm]")
     input_idx = 1
 
-    # Check if new 5-act schema with per-scene foley_cues is present
+    # Filter and curate cues: MAX 3 cues for the ENTIRE video, minimum 3.0s apart, no random animal noises
+    character_name = (story.get("character_name") or story.get("protagonist", {}).get("name", "")).lower()
+    banned_animal_sfx = set()
+    if "cat" not in character_name:
+        banned_animal_sfx.add("meow")
+    if "dog" not in character_name and "puppy" not in character_name:
+        banned_animal_sfx.add("bark")
+    if "duck" not in character_name:
+        banned_animal_sfx.add("quack")
+
+    collected_cues = []
     has_scene_foley_cues = any(bool(sc.get("foley_cues")) for sc in scenes)
     if has_scene_foley_cues:
         current_time = 0.0
         for sc in scenes:
             scene_dur = float(sc.get("duration_sec", 2.5))
-            cues = sc.get("foley_cues", [])
-            for cue in cues:
-                sound_name = cue.get("sfx", "bonk")
-                sfx_path = resolve_foley_sound(sound_name)
-                inputs.extend(["-i", sfx_path])
+            for cue in sc.get("foley_cues", []):
+                sound_name = cue.get("sfx", "").lower()
+                if sound_name in banned_animal_sfx or not sound_name:
+                    continue
                 rel_t = float(cue.get("timestamp_sec", 0.0))
                 abs_t = current_time + rel_t
-                delay_ms = int(abs_t * 1000)
-                vol = float(cue.get("volume", 2.0))
-                dur = float(cue.get("duration", 1.5))
-                label = f"cue{input_idx}"
-                filter_parts.append(
-                    f"[{input_idx}:a]volume={vol},atrim=0:{dur},asetpts=PTS-STARTPTS,adelay={delay_ms}|{delay_ms}[{label}]"
-                )
-                mix_inputs.append(f"[{label}]")
-                input_idx += 1
+                vol = min(float(cue.get("volume", 1.2)), 1.3)  # Cap volume to prevent distortion
+                dur = min(float(cue.get("duration", 1.2)), 1.5)
+                collected_cues.append({
+                    "sfx": sound_name,
+                    "time": abs_t,
+                    "vol": vol,
+                    "dur": dur
+                })
             current_time += scene_dur
-    elif story.get("audio_cues"):
-        # Custom multi-cue audio timeline (200% synchronized micro-timing)
-        custom_cues = story.get("audio_cues")
-        for idx, cue in enumerate(custom_cues):
-            sound_type = cue.get("sound", "bonk")
-            sfx_path = resolve_foley_sound(sound_type)
-            inputs.extend(["-i", sfx_path])
-            offset_sec = cue.get("offset", 0.0)
-            delay_ms = int(offset_sec * 1000)
-            vol = cue.get("volume", 2.5)
-            dur = cue.get("duration", 1.5)
-            label = f"cue{idx+1}"
-            filter_parts.append(
-                f"[{input_idx}:a]volume={vol},atrim=0:{dur},asetpts=PTS-STARTPTS,adelay={delay_ms}|{delay_ms}[{label}]"
-            )
-            mix_inputs.append(f"[{label}]")
-            input_idx += 1
+
+    # Enforce strict pacing: MAX 3 cues total, separated by at least 2.5 seconds
+    selected_cues = []
+    last_time = -999.0
+    for c in collected_cues:
+        if len(selected_cues) >= 3:
+            break
+        if c["time"] - last_time >= 2.5 and c["time"] < (total_duration - 0.5):
+            selected_cues.append(c)
+            last_time = c["time"]
+
+    print(f"[AUDIO DIRECTOR] Selected {len(selected_cues)} clean narrative Foley cues (curated from {len(collected_cues)} raw cues)")
+    for sc_cue in selected_cues:
+        sound_name = sc_cue["sfx"]
+        sfx_path = resolve_foley_sound(sound_name)
+        inputs.extend(["-i", sfx_path])
+        delay_ms = int(sc_cue["time"] * 1000)
+        vol = sc_cue["vol"]
+        dur = sc_cue["dur"]
+        label = f"cue{input_idx}"
+        filter_parts.append(
+            f"[{input_idx}:a]volume={vol},atrim=0:{dur},asetpts=PTS-STARTPTS,adelay={delay_ms}|{delay_ms}[{label}]"
+        )
+        mix_inputs.append(f"[{label}]")
+        input_idx += 1
     else:
         # Default scene timing partitions aligned to the Conflict Arc action climax
         default_offsets = [1.2, 4.0, 6.8]

@@ -111,64 +111,68 @@ day_one_story = {
     "tags": ["shorts", "viral", "animation", "comedy", "hamster", "pixar"]
 }
 
-# Ensure our pre-generated 4K pristine hero keyframe is in position
-hero_source = "data/temp/gemini_hero_test.png"
-hero_dest = "data/temp/hero_keyframe.png"
-if os.path.exists(hero_source) and not os.path.exists(hero_dest):
-    from PIL import Image
-    im = Image.open(hero_source)
-    im.resize((576, 1024), Image.LANCZOS).save(hero_dest, "PNG")
+def main():
+    # Ensure our pre-generated 4K pristine hero keyframe is in position
+    hero_source = "data/temp/gemini_hero_test.png"
+    hero_dest = "data/temp/hero_keyframe.png"
+    if os.path.exists(hero_source) and not os.path.exists(hero_dest):
+        from PIL import Image
+        im = Image.open(hero_source)
+        im.resize((576, 1024), Image.LANCZOS).save(hero_dest, "PNG")
 
-# Render Day 1
-timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-story_id = f"ai_story_day1_{timestamp}"
-story_out = os.path.join("data", "output", f"{story_id}.mp4")
-
-print("\n" + "=" * 60)
-print(f"🎬 RENDERING DAY 1: '{day_one_story['title']}'")
-print(f"🎯 Protagonist: {day_one_story['protagonist']['name']}")
-print(f"🔪 Cliffhanger: Cut at hook mid-air above blender")
-print("=" * 60 + "\n")
-
-rendered_short = render_story_video(day_one_story, story_out)
-
-if rendered_short and os.path.exists(rendered_short):
-    yt_title = day_one_story["yt_title"]
-    fb_title = day_one_story["fb_title"]
-    yt_tags = day_one_story["tags"]
-    yt_description = build_viral_yt_description(day_one_story) + "\n\n🚨 Will he survive the fall?! Part 2 drops tomorrow at 7 AM! Subscribe and ring the bell so you don't miss it!"
-    fb_description = build_viral_fb_description(day_one_story) + "\n\nPart 2 coming tomorrow! Drop your predictions in the comments! 😂👇"
-
-    thumb_path = os.path.join("data", "output", f"thumb_{story_id}.jpg")
-    generate_thumbnail(rendered_short, thumb_path)
-
-    print(f"\n🚀 Uploading Day 1 | YT: '{yt_title}' | FB: '{fb_title}'...")
-    yt_res = upload_to_youtube(rendered_short, yt_title, yt_description, yt_tags, thumbnail_path=thumb_path)
-    fb_res = upload_to_facebook(rendered_short, fb_title, fb_description, is_compilation=False, thumbnail_path=thumb_path)
-
-    yt_id = yt_res if isinstance(yt_res, str) else (yt_res.get("id") if isinstance(yt_res, dict) else None)
-    fb_id = fb_res if isinstance(fb_res, str) else (fb_res.get("id") if isinstance(fb_res, dict) else None)
-
-    # Track in Supabase
-    log_video_analytics(story_id, yt_title, "funny_short", "episodic_cliffhanger", yt_id=yt_id, fb_id=fb_id)
-
-    # Deliver Telegram notification
-    try:
-        upload_summary = {
-            "short_title": yt_title,
-            "comp_title": "Day 1 Episodic Series: The Great Escape"
-        }
-        send_telegram_report("funny_short", {}, fb_profile={}, upload_summary=upload_summary)
-    except Exception as e:
-        print(f"Telegram notice: {e}")
+    # Render Day 1
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    story_id = f"ai_story_day1_{timestamp}"
+    story_out = os.path.join("data", "output", f"{story_id}.mp4")
 
     print("\n" + "=" * 60)
-    print("✅ DAY 1 SUCCESSFULLY RENDERED & UPLOADED!")
-    if yt_id:
-        print(f"🎥 YouTube Short: https://youtube.com/shorts/{yt_id}")
-    if fb_id:
-        print(f"📱 Facebook Reel ID: {fb_id}")
-    print("=" * 60)
-else:
-    print("❌ Failed to render Day 1 video.")
-    sys.exit(1)
+    print(f"🎬 RENDERING DAY 1: '{day_one_story['title']}'")
+    print(f"🎯 Protagonist: {day_one_story['protagonist']['name']}")
+    print(f"🔪 Cliffhanger: Cut at hook mid-air above blender")
+    print("=" * 60 + "\n")
+
+    rendered_short = render_story_video(day_one_story, story_out)
+
+    if rendered_short and os.path.exists(rendered_short):
+        yt_title = day_one_story["yt_title"]
+        fb_title = day_one_story["fb_title"]
+        yt_tags = day_one_story["tags"]
+        yt_description = build_viral_yt_description(day_one_story) + "\n\n🚨 Will he survive the fall?! Part 2 drops tomorrow at 7 AM! Subscribe and ring the bell so you don't miss it!"
+        fb_description = build_viral_fb_description(day_one_story) + "\n\nPart 2 coming tomorrow! Drop your predictions in the comments! 😂👇"
+
+        thumb_path = os.path.join("data", "output", f"thumb_{story_id}.jpg")
+        generate_thumbnail(rendered_short, thumb_path)
+
+        print(f"\n🚀 Uploading Day 1 | YT: '{yt_title}' | FB: '{fb_title}'...")
+        yt_res = upload_to_youtube(rendered_short, yt_title, yt_description, yt_tags, thumbnail_path=thumb_path)
+        fb_res = upload_to_facebook(rendered_short, fb_title, fb_description, is_compilation=False, thumbnail_path=thumb_path)
+
+        yt_id = yt_res if isinstance(yt_res, str) else (yt_res.get("id") if isinstance(yt_res, dict) else None)
+        fb_id = fb_res if isinstance(fb_res, str) else (fb_res.get("id") if isinstance(fb_res, dict) else None)
+
+        # Track in Supabase
+        log_video_analytics(story_id, yt_title, "funny_short", "episodic_cliffhanger", yt_id=yt_id, fb_id=fb_id)
+
+        # Deliver Telegram notification
+        try:
+            upload_summary = {
+                "short_title": yt_title,
+                "comp_title": "Day 1 Episodic Series: The Great Escape"
+            }
+            send_telegram_report("funny_short", {}, fb_profile={}, upload_summary=upload_summary)
+        except Exception as e:
+            print(f"Telegram notice: {e}")
+
+        print("\n" + "=" * 60)
+        print("✅ DAY 1 SUCCESSFULLY RENDERED & UPLOADED!")
+        if yt_id:
+            print(f"🎥 YouTube Short: https://youtube.com/shorts/{yt_id}")
+        if fb_id:
+            print(f"📱 Facebook Reel ID: {fb_id}")
+        print("=" * 60)
+    else:
+        print("❌ Failed to render Day 1 video.")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
