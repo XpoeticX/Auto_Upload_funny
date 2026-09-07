@@ -295,9 +295,11 @@ def get_rlaf_ai_feedback() -> dict:
     
     print(f"\n[RLAF ADAPTIVE ENGINE] Mode: {strategy_mode}")
     if top_topics:
-        print(f"[RLAF ADAPTIVE ENGINE] Reinforcing Top Concepts: {top_topics[:3]}")
+        safe_topics = [t.encode('ascii', 'replace').decode() for t in top_topics[:3]]
+        print(f"[RLAF ADAPTIVE ENGINE] Reinforcing Top Concepts: {safe_topics}")
     if low_topics:
-        print(f"[RLAF ADAPTIVE ENGINE] Downweighting Low Concepts: {low_topics[:2]}")
+        safe_low = [t.encode('ascii', 'replace').decode() for t in low_topics[:2]]
+        print(f"[RLAF ADAPTIVE ENGINE] Downweighting Low Concepts: {safe_low}")
         
     return {
         "top_topics": top_topics,

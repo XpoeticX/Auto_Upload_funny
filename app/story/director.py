@@ -8,7 +8,13 @@ import math
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 from google import genai
-from app.video.ai_diffusion import generate_ai_video_from_prompt, animate_image_to_video
+from app.video.ai_diffusion import (
+    generate_ai_video_from_prompt,
+    generate_ai_video_from_image,
+    generate_hero_keyframe,
+    is_video_empty,
+    generate_pan_zoom_fallback
+)
 from app.analytics.engine import get_rlaf_ai_feedback
 from app.story.audio_director import build_scene_audio_timeline
 
@@ -623,11 +629,16 @@ Return valid JSON with this exact structure:
 
 def render_story_video(story: Dict, output_path: str) -> Optional[str]:
     """
-    Renders a 5-act story into a complete 1080x1920 Short:
-    - Generates 5 real AI video diffusion scenes with negative_prompt quality control.
-    - Synchronizes per-scene Foley sound effects at millisecond precision.
-    - Adds ducked comedy background music with EBU R128 loudnorm.
-    - Concatenates and encodes final high-bitrate MP4.
+    Renders a 5-act story into a complete 1080x1920 Short using the
+    Image-to-Video (I2V) protagonist-lock pipeline:
+
+    1. Generates a FLUX.1-schnell hero keyframe (576x1024, 9:16) from protagonist
+       visual_identity + environment — locking art style across all scenes.
+    2. For each scene, uses LTX Video image-to-video mode with the hero keyframe
+       as t=0 reference frame + scene action prompt.
+    3. Validates each scene with dual empty/frozen detection.
+    4. Falls back through: I2V → text-to-video → Ken Burns pan-zoom → motion assets.
+    5. Concatenates, mixes dynamic Foley audio, and encodes final MP4.
     """
     os.makedirs("data/temp", exist_ok=True)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -636,6 +647,44 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
     if len(scenes) < 3:
         print("[STORY DIRECTOR] Error: Story must have at least 3 scenes.")
         return None
+
+    # --- STEP 1: Generate Hero Reference Keyframe ---
+    protagonist = story.get("protagonist", {})
+    if isinstance(protagonist, dict):
+        visual_identity = protagonist.get("visual_identity", story.get("character_name", "cute cartoon animal character"))
+    else:
+        visual_identity = str(protagonist) if protagonist else story.get("character_name", "cute cartoon animal character")
+
+    environment = story.get("environment", "colorful cartoon kitchen")
+    art_style = "Pixar 3D animation style, vibrant colors, soft lighting, sharp focus, cinematic"
+
+    hero_prompt = (
+        f"{visual_identity}, {environment}, full body character pose, centered composition, "
+        f"{art_style}, 9:16 vertical portrait, detailed character design sheet"
+    )
+
+    hero_keyframe_path = os.path.join("data", "temp", "hero_keyframe.png")
+    hero_image = generate_hero_keyframe(
+        prompt=hero_prompt,
+        output_path=hero_keyframe_path,
+        width=576,
+        height=1024
+    )
+
+    use_i2v = hero_image is not None and os.path.exists(hero_keyframe_path)
+    if use_i2v:
+        print(f"[STORY DIRECTOR] Hero keyframe generated. Using I2V pipeline for protagonist lock.")
+    else:
+        print(f"[STORY DIRECTOR] Hero keyframe failed. Falling back to text-to-video pipeline.")
+
+    # --- Dynamic motion prefixes to prevent start-frame snapback (scenes 2-5) ---
+    SNAPBACK_PREFIXES = [
+        "",  # Scene 1: no prefix, establishing shot from hero pose
+        "sudden whip pan reveals ",
+        "explosive leap into frame, ",
+        "dramatic camera zoom-in on ",
+        "quick swish pan transition to ",
+    ]
 
     rendered_scene_vids = []
     used_motion_fallback = False
@@ -648,19 +697,59 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
         sc_dur = float(sc.get("duration_sec", 2.8 if idx < len(scenes) - 1 else 3.0))
         sc_out = os.path.join("data", "temp", f"story_scene_{num}.mp4")
 
+        # Add snapback prevention prefix for scenes 2+
+        motion_prefix = SNAPBACK_PREFIXES[min(idx, len(SNAPBACK_PREFIXES) - 1)]
+        scene_prompt = f"{motion_prefix}{p}, {art_style}, consistent character appearance"
+
         print(f"[STORY DIRECTOR] Generating Scene {num}/{len(scenes)} ({act}): {p[:80]}...")
-        vid_path = generate_ai_video_from_prompt(p, sc_out, duration=int(math.ceil(sc_dur)), negative_prompt=neg_p)
-        if not vid_path or not os.path.exists(vid_path):
-            print(f"[STORY DIRECTOR] Warning: Scene {num} generation issue. Using motion fallback...")
-            # Fallback to permanent neural motion assets (3 clips wrap for 5 scenes: 1→2→3→2→3)
+
+        vid_path = None
+        scene_valid = False
+
+        # --- TIER 1: Image-to-Video (protagonist lock) ---
+        if use_i2v:
+            for attempt in range(2):
+                vid_path = generate_ai_video_from_image(
+                    image_path=hero_keyframe_path,
+                    scene_prompt=scene_prompt,
+                    output_path=sc_out,
+                    duration=int(math.ceil(sc_dur)),
+                    negative_prompt=neg_p
+                )
+                if vid_path and os.path.exists(vid_path):
+                    if not is_video_empty(vid_path):
+                        scene_valid = True
+                        break
+                    else:
+                        print(f"[STORY DIRECTOR] Scene {num} I2V produced blank/frozen frame (attempt {attempt+1}). Retrying...")
+                else:
+                    break  # I2V completely failed, move to next tier
+
+        # --- TIER 2: Text-to-Video fallback ---
+        if not scene_valid:
+            print(f"[STORY DIRECTOR] Scene {num}: I2V failed. Trying text-to-video fallback...")
+            vid_path = generate_ai_video_from_prompt(p, sc_out, duration=int(math.ceil(sc_dur)), negative_prompt=neg_p)
+            if vid_path and os.path.exists(vid_path) and not is_video_empty(vid_path):
+                scene_valid = True
+
+        # --- TIER 3: Ken Burns pan-zoom on hero keyframe ---
+        if not scene_valid and use_i2v:
+            print(f"[STORY DIRECTOR] Scene {num}: T2V failed. Using Ken Burns on hero keyframe...")
+            vid_path = generate_pan_zoom_fallback(hero_keyframe_path, sc_out, duration=sc_dur)
+            if vid_path and os.path.exists(vid_path):
+                scene_valid = True
+
+        # --- TIER 4: Pre-rendered motion fallback assets ---
+        if not scene_valid:
+            print(f"[STORY DIRECTOR] Scene {num}: All AI tiers failed. Using pre-rendered motion fallback...")
             fallback_files = ["scene1.mp4", "scene2.mp4", "scene3.mp4"]
             fb_idx = idx % len(fallback_files)
             fb_path = os.path.join("data", "assets", "motion_fallback", fallback_files[fb_idx])
             if fb_path and os.path.exists(fb_path):
-                print(f"[STORY DIRECTOR] Using motion fallback asset for Scene {num}: {fb_path}")
                 shutil.copy2(fb_path, sc_out)
                 vid_path = sc_out
                 used_motion_fallback = True
+                scene_valid = True
             else:
                 print(f"[STORY DIRECTOR] No fallback asset available for Scene {num}. Skipping.")
                 return None
@@ -671,13 +760,12 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
             "ffmpeg", "-y", "-i", vid_path,
             "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
             "-t", str(sc_dur), "-r", "30", "-c:v", "libx264", "-pix_fmt", "yuv420p", sc_fmt
-        ], check=True)
+        ], capture_output=True, check=True)
         rendered_scene_vids.append(sc_fmt)
 
-    # If fallback pack was used, align story metadata and audio timeline 200% with the footage
+    # If fallback pack was used, align story metadata and audio timeline with the footage
     if used_motion_fallback:
-        print("[STORY DIRECTOR] Fallback motion used. Synchronizing story metadata & audio cues 100% with Golden Egg footage...")
-        # Use the first FALLBACK_CONCEPT (Golden Egg) which has proper 5-act foley_cues
+        print("[STORY DIRECTOR] Fallback motion used. Synchronizing story metadata & audio cues with Golden Egg footage...")
         golden_egg = FALLBACK_CONCEPTS[0]
         story.update({
             "title": golden_egg["title"],
@@ -692,7 +780,6 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
             "fb_title": golden_egg["fb_title"],
             "tags": golden_egg["tags"]
         })
-        # Recalculate scenes reference after update
         scenes = story.get("scenes", [])
 
     # Concatenate video scenes
@@ -705,9 +792,9 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
     subprocess.run([
         "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_txt,
         "-c:v", "libx264", "-pix_fmt", "yuv420p", visual_only
-    ], check=True)
+    ], capture_output=True, check=True)
 
-    # Dynamic Foley & Music Generation tailored 200% to this specific story and motion
+    # Dynamic Foley & Music Generation
     master_audio = os.path.join("data", "temp", "story_master_audio.wav")
     total_dur = sum(float(sc.get("duration_sec", 2.8 if idx < len(scenes) - 1 else 3.0)) for idx, sc in enumerate(scenes))
     build_scene_audio_timeline(story, total_duration=total_dur, output_wav=master_audio)
@@ -722,7 +809,7 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
         "-shortest",
         output_path
     ]
-    subprocess.run(cmd_mux, check=True)
+    subprocess.run(cmd_mux, capture_output=True, check=True)
 
     if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
         print(f"[STORY DIRECTOR] Successfully rendered {len(rendered_scene_vids)}-scene story: {output_path}")
