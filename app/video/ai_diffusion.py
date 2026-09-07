@@ -49,7 +49,7 @@ def generate_hero_keyframe(
             client = Client(FLUX_SPACE, token=token) if token else Client(FLUX_SPACE)
             result = client.predict(
                 prompt=prompt,
-                seed=random.randint(0, 2**32 - 1),
+                seed=random.randint(0, 2**31 - 1),
                 randomize_seed=True,
                 width=width,
                 height=height,
@@ -105,7 +105,7 @@ def generate_ai_video_from_image(
                 mode="image-to-video",
                 duration_ui=duration,
                 ui_frames_to_use=9,
-                seed_ui=random.randint(0, 2**32 - 1),
+                seed_ui=random.randint(0, 2**31 - 1),
                 randomize_seed=True,
                 ui_guidance_scale=1,
                 improve_texture_flag=True,
@@ -146,7 +146,7 @@ def generate_ai_video_from_prompt(prompt: str, output_path: str, duration: int =
 
     for idx, token in enumerate(tokens):
         try:
-            client = Client(SPACE_NAME, hf_token=token) if token else Client(SPACE_NAME)
+            client = Client(SPACE_NAME, token=token) if token else Client(SPACE_NAME)
             result = client.predict(
                 prompt=prompt,
                 negative_prompt=neg,
