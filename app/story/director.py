@@ -13,7 +13,8 @@ from app.video.ai_diffusion import (
     generate_ai_video_from_image,
     generate_hero_keyframe,
     is_video_empty,
-    generate_pan_zoom_fallback
+    generate_pan_zoom_fallback,
+    reframe_hero_for_scene
 )
 from app.analytics.engine import get_rlaf_ai_feedback
 from app.story.audio_director import build_scene_audio_timeline
@@ -504,6 +505,81 @@ FALLBACK_CONCEPTS = [
     }
 ]
 
+# ---------------------------------------------------------------------------
+# DEFAULT FOLEY CUE INJECTION (for Qwen/Gemini stories missing foley_cues)
+# ---------------------------------------------------------------------------
+# Maps action keywords in diffusion_prompt to appropriate SFX
+_KEYWORD_SFX_MAP = [
+    (["knife", "chop", "slice", "cut"], [
+        {"timestamp_sec": 0.2, "sfx": "whoosh_fast", "volume": 2.5},
+        {"timestamp_sec": 1.2, "sfx": "bonk", "volume": 2.0},
+    ]),
+    (["escape", "run", "roll", "dodge", "scramble"], [
+        {"timestamp_sec": 0.3, "sfx": "whoosh", "volume": 2.0},
+        {"timestamp_sec": 1.5, "sfx": "slide_whistle_down", "volume": 2.2},
+    ]),
+    (["crash", "smash", "destroy", "explode", "collide"], [
+        {"timestamp_sec": 0.5, "sfx": "crash_multi", "volume": 2.8},
+        {"timestamp_sec": 1.0, "sfx": "clatter_multi", "volume": 2.0},
+    ]),
+    (["jump", "leap", "bounce", "fly", "launch"], [
+        {"timestamp_sec": 0.3, "sfx": "boing", "volume": 2.5},
+        {"timestamp_sec": 1.5, "sfx": "whoosh_high", "volume": 2.0},
+    ]),
+    (["gasp", "shock", "scare", "surprise", "recoil"], [
+        {"timestamp_sec": 0.2, "sfx": "rising_hum", "volume": 2.0},
+        {"timestamp_sec": 1.0, "sfx": "ding_high_confirm", "volume": 2.5},
+    ]),
+    (["victory", "win", "celebrate", "triumph", "cheer", "safe"], [
+        {"timestamp_sec": 0.5, "sfx": "ding", "volume": 2.5},
+        {"timestamp_sec": 1.5, "sfx": "boing", "volume": 2.0},
+    ]),
+    (["cook", "sizzle", "fry", "grill", "bake"], [
+        {"timestamp_sec": 0.3, "sfx": "sizzle", "volume": 2.2},
+        {"timestamp_sec": 1.2, "sfx": "knife_chop", "volume": 2.0},
+    ]),
+]
+
+# Fallback cues per act if no keyword matches
+_DEFAULT_ACT_CUES = [
+    [{"timestamp_sec": 0.5, "sfx": "whoosh", "volume": 2.0}, {"timestamp_sec": 1.5, "sfx": "bonk", "volume": 2.2}],
+    [{"timestamp_sec": 0.3, "sfx": "whoosh_fast", "volume": 2.5}, {"timestamp_sec": 1.8, "sfx": "crash_multi", "volume": 2.0}],
+    [{"timestamp_sec": 0.5, "sfx": "boing", "volume": 2.5}, {"timestamp_sec": 1.2, "sfx": "whoosh_high", "volume": 2.0}],
+    [{"timestamp_sec": 0.3, "sfx": "rising_hum", "volume": 2.0}, {"timestamp_sec": 1.5, "sfx": "clatter_thump", "volume": 2.5}],
+    [{"timestamp_sec": 0.5, "sfx": "ding", "volume": 2.8}, {"timestamp_sec": 1.5, "sfx": "boing", "volume": 2.0}],
+]
+
+def _inject_default_foley_cues(story_data: Dict):
+    """
+    Scans each scene in a story concept for missing foley_cues.
+    If absent, keyword-matches the diffusion_prompt to inject
+    appropriate SFX. Ensures audio director always has cues to work with.
+    """
+    scenes = story_data.get("scenes", [])
+    for idx, sc in enumerate(scenes):
+        if sc.get("foley_cues"):
+            continue  # Already has cues
+
+        prompt_text = (sc.get("diffusion_prompt", "") + " " + sc.get("visual_prompt", "")).lower()
+        matched = False
+        for keywords, cues in _KEYWORD_SFX_MAP:
+            if any(kw in prompt_text for kw in keywords):
+                sc["foley_cues"] = cues
+                matched = True
+                break
+
+        if not matched:
+            # Use positional default cues for this act
+            sc["foley_cues"] = _DEFAULT_ACT_CUES[min(idx, len(_DEFAULT_ACT_CUES) - 1)]
+
+    # Ensure audio_config exists
+    if "audio_config" not in story_data or not story_data["audio_config"]:
+        story_data["audio_config"] = {
+            "bgm_style": "bouncy_comedy_loop",
+            "bgm_base_volume": 0.75,
+            "target_loudnorm_lufs": -14.0
+        }
+
 def generate_viral_story_concept(rlaf_feedback: Optional[Dict] = None) -> Dict:
     """
     Uses Gemini / Qwen-72B to autonomously brainstorm ultra-viral surrealist AI animated short stories
@@ -617,6 +693,13 @@ Return valid JSON with this exact structure:
             raw = re.sub(r"^```\s*", "", raw)
             raw = re.sub(r"\s*```$", "", raw)
             data = json.loads(raw.strip())
+            # Normalize title field (Qwen may use story_title or title)
+            if "title" not in data and "story_title" in data:
+                data["title"] = data["story_title"]
+            elif "story_title" not in data and "title" in data:
+                data["story_title"] = data["title"]
+            # Inject default foley_cues for scenes that lack them
+            _inject_default_foley_cues(data)
             print(f"[STORY DIRECTOR] Conceived new 5-act story via Qwen-72B: '{data.get('story_title', data.get('title'))}' in niche '{data.get('niche')}'")
             return data
         except Exception as e:
@@ -677,13 +760,15 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
     else:
         print(f"[STORY DIRECTOR] Hero keyframe failed. Falling back to text-to-video pipeline.")
 
-    # --- Dynamic motion prefixes to prevent start-frame snapback (scenes 2-5) ---
-    SNAPBACK_PREFIXES = [
-        "",  # Scene 1: no prefix, establishing shot from hero pose
-        "sudden whip pan reveals ",
-        "explosive leap into frame, ",
-        "dramatic camera zoom-in on ",
-        "quick swish pan transition to ",
+    # --- High-displacement camera/physics verbs to force real motion (not idle loops) ---
+    # Scene 1 gets no prefix (establishing shot). Scenes 2-5 get aggressive velocity cues
+    # that push the I2V latent space away from the static reference anchor.
+    DISPLACEMENT_PREFIXES = [
+        "",  # Act 1: establishing shot from hero pose
+        "fast zoom-in, extreme motion, character rapidly dodges sideways, ",
+        "low angle dynamic shot, character leaps off the surface into the air, ",
+        "extreme motion, character rolls rapidly across the surface, camera tracking fast, ",
+        "cinematic slow-motion, character slides and lands in a new position, triumphant pose, ",
     ]
 
     rendered_scene_vids = []
@@ -697,8 +782,8 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
         sc_dur = float(sc.get("duration_sec", 2.8 if idx < len(scenes) - 1 else 3.0))
         sc_out = os.path.join("data", "temp", f"story_scene_{num}.mp4")
 
-        # Add snapback prevention prefix for scenes 2+
-        motion_prefix = SNAPBACK_PREFIXES[min(idx, len(SNAPBACK_PREFIXES) - 1)]
+        # Build high-displacement scene prompt
+        motion_prefix = DISPLACEMENT_PREFIXES[min(idx, len(DISPLACEMENT_PREFIXES) - 1)]
         scene_prompt = f"{motion_prefix}{p}, {art_style}, consistent character appearance"
 
         print(f"[STORY DIRECTOR] Generating Scene {num}/{len(scenes)} ({act}): {p[:80]}...")
@@ -706,11 +791,15 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
         vid_path = None
         scene_valid = False
 
-        # --- TIER 1: Image-to-Video (protagonist lock) ---
+        # --- TIER 1: Image-to-Video with per-scene reframed hero (protagonist lock) ---
         if use_i2v:
+            # Reframe hero image per act to vary composition (prevent dead-center staging)
+            reframed_path = os.path.join("data", "temp", f"hero_act_{num}.png")
+            scene_hero = reframe_hero_for_scene(hero_keyframe_path, idx, reframed_path)
+
             for attempt in range(2):
                 vid_path = generate_ai_video_from_image(
-                    image_path=hero_keyframe_path,
+                    image_path=scene_hero,
                     scene_prompt=scene_prompt,
                     output_path=sc_out,
                     duration=int(math.ceil(sc_dur)),

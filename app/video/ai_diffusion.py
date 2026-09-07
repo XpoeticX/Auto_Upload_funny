@@ -274,3 +274,58 @@ def generate_pan_zoom_fallback(
     except Exception as e:
         print(f"[PAN-ZOOM FALLBACK] FFmpeg error: {e}")
     return None
+
+
+# ---------------------------------------------------------------------------
+# 6. PER-SCENE HERO IMAGE REFRAMING (break dead-center snapback)
+# ---------------------------------------------------------------------------
+# Scene composition presets: (crop_box_ratio, description)
+# crop_box is (left%, top%, right%, bottom%) of the original image
+SCENE_FRAMINGS = [
+    # Act 1: Full body establishing shot (original, no crop)
+    {"crop": (0.0, 0.0, 1.0, 1.0), "desc": "full body establishing"},
+    # Act 2: Character shifted left, slight zoom
+    {"crop": (0.0, 0.05, 0.75, 0.85), "desc": "left-shifted medium"},
+    # Act 3: Close-up face/upper body (emotional reaction)
+    {"crop": (0.1, 0.0, 0.9, 0.5), "desc": "close-up upper body"},
+    # Act 4: Character shifted right, action framing
+    {"crop": (0.25, 0.1, 1.0, 0.9), "desc": "right-shifted action"},
+    # Act 5: Wide pull-back with character in lower third
+    {"crop": (0.0, 0.15, 1.0, 1.0), "desc": "wide resolution shot"},
+]
+
+def reframe_hero_for_scene(
+    hero_path: str,
+    scene_index: int,
+    output_path: str,
+    target_width: int = 576,
+    target_height: int = 1024
+) -> str:
+    """
+    Creates a per-scene crop/reframe of the hero keyframe to vary
+    composition across acts. Prevents the dead-center snapback where
+    every scene looks identical because the same centered portrait
+    is used as the I2V starting frame.
+    """
+    try:
+        framing = SCENE_FRAMINGS[min(scene_index, len(SCENE_FRAMINGS) - 1)]
+        crop = framing["crop"]
+
+        with Image.open(hero_path) as img:
+            w, h = img.size
+            left = int(w * crop[0])
+            top = int(h * crop[1])
+            right = int(w * crop[2])
+            bottom = int(h * crop[3])
+
+            cropped = img.crop((left, top, right, bottom))
+            # Resize back to target dimensions for I2V model
+            resized = cropped.resize((target_width, target_height), Image.LANCZOS)
+            os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+            resized.save(output_path, format="PNG")
+
+        print(f"[REFRAME] Act {scene_index+1}: {framing['desc']} → {output_path}")
+        return output_path
+    except Exception as e:
+        print(f"[REFRAME] Error: {e}. Using original hero image.")
+        return hero_path
