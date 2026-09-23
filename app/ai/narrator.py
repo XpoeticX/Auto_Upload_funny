@@ -37,7 +37,52 @@ FALLBACK_NARRATIONS = [
     }
 ]
 
-def generate_ai_narration(video_path: str, clip_duration: float = 12.0) -> Dict:
+from app.story.director import sanitize_viral_title
+
+def generate_ai_narration_from_text(clip_title: str, clip_duration: float = 12.0) -> Dict:
+    """Fast text-based voiceover generator if video upload times out or fails."""
+    api_keys = [
+        os.environ.get("GEMINI_API_KEY"),
+        os.environ.get("GEMINI_API_KEY_2"),
+        os.environ.get("GEMINI_API_KEY_3"),
+        os.environ.get("GEMINI_API_KEY_4")
+    ]
+    api_keys = [k for k in api_keys if k and str(k).strip() != "None"]
+    if not api_keys:
+        return FALLBACK_NARRATIONS[0]
+
+    target_word_count = max(18, min(45, int(clip_duration * 2.8)))
+    prompt = f"""
+    [SYSTEM: VIRAL PET & COMEDY VOICE-OVER ENGINE]
+    A viral short video titled: "{clip_title}"
+    Write a HILARIOUS, high-retention character voice-over monologue (~{target_word_count} words).
+    Select voice from: ["en-US-ChristopherNeural", "en-US-GuyNeural", "en-US-JennyNeural", "en-US-AnaNeural"].
+    
+    OUTPUT FORMAT: Return STRICTLY a valid JSON object:
+    {{
+      "character_persona": "Sarcastic Pet",
+      "voice_name": "en-US-ChristopherNeural",
+      "voiceover_script": "Monologue matching the clip.",
+      "top_meme_headline": "BRO TOOK IT PERSONALLY 💀",
+      "yt_title": "He took it so personally 😂💀 #shorts #viral",
+      "fb_title": "Tag the friend who acts exactly like this! 😂👇",
+      "tags": ["shorts", "funny", "viral", "comedy"]
+    }}
+    """
+    for api_key in api_keys:
+        try:
+            client = genai.Client(api_key=api_key)
+            resp = client.models.generate_content(model="gemini-3.6-flash", contents=prompt)
+            if resp and resp.text:
+                cleaned = resp.text.strip().replace("```json", "").replace("```", "").strip()
+                data = json.loads(cleaned)
+                data["yt_title"] = sanitize_viral_title(data.get("yt_title"), "You Won't Believe What Happens! 😂 #shorts #viral")
+                return NarrationData(**data).model_dump()
+        except Exception:
+            continue
+    return FALLBACK_NARRATIONS[0]
+
+def generate_ai_narration(video_path: str, clip_duration: float = 12.0, clip_title: str = "") -> Dict:
     """
     Uses Gemini Vision to watch the video clip and generate a hilarious,
     transformative character voiceover (e.g. funny pet inner monologue).
@@ -58,7 +103,6 @@ def generate_ai_narration(video_path: str, clip_duration: float = 12.0) -> Dict:
         return FALLBACK_NARRATIONS[0]
 
     model_names = [
-        "gemini-3.7-flash",
         "gemini-3.6-flash",
         "gemini-3.5-flash",
         "gemini-2.5-flash",
@@ -125,6 +169,7 @@ def generate_ai_narration(video_path: str, clip_duration: float = 12.0) -> Dict:
                         cleaned_text = cleaned_text.split("```")[1].split("```")[0].strip()
 
                     data = json.loads(cleaned_text)
+                    data["yt_title"] = sanitize_viral_title(data.get("yt_title"), "You Won't Believe What Happens Next! 😂 #shorts #viral")
                     validated = NarrationData(**data).model_dump()
                     _LOCKED_KEY_INDEX = key_idx
                     print(f"[AI NARRATOR] Generated voiceover script via {model} (Locked Key #{key_idx + 1})")
@@ -132,5 +177,11 @@ def generate_ai_narration(video_path: str, clip_duration: float = 12.0) -> Dict:
             except Exception as e:
                 continue
 
+    if clip_title:
+        print("[AI NARRATOR] Vision upload skipped or failed. Triggering fast text generation from clip title...")
+        return generate_ai_narration_from_text(clip_title, clip_duration=clip_duration)
+
     print("[AI NARRATOR] Fallback narration triggered.")
-    return FALLBACK_NARRATIONS[0]
+    fb = FALLBACK_NARRATIONS[0]
+    fb["yt_title"] = sanitize_viral_title(fb["yt_title"], "Wait For It! 😂💀 #shorts #viral")
+    return fb

@@ -97,6 +97,7 @@ def download_video(url: str, output_path: str) -> str:
     # --- DEFAULT YT-DLP (Imgur, Fallback) ---
     ydl_opts = {
         'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'merge_output_format': 'mp4',
         'outtmpl': output_path,
         'quiet': False,
         'no_warnings': True,
@@ -105,6 +106,20 @@ def download_video(url: str, output_path: str) -> str:
         'fragment_retries': 2,
         'skip_download': False
     }
+
+    cookies_path = "data/temp/youtube_cookies.txt"
+    cookies_content = os.environ.get("YOUTUBE_COOKIES")
+    if cookies_content and not os.path.exists(cookies_path):
+        os.makedirs("data/temp", exist_ok=True)
+        try:
+            with open(cookies_path, "w", encoding="utf-8") as f:
+                f.write(cookies_content)
+        except Exception:
+            pass
+
+    if os.path.exists(cookies_path):
+        ydl_opts['cookiefile'] = cookies_path
+        print(f"[DOWNLOADER] Using YouTube cookies from {cookies_path}")
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

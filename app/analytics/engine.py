@@ -307,9 +307,10 @@ def fetch_and_update_metrics() -> None:
 
 def get_rlaf_ai_feedback() -> dict:
     """
-    Extracts real-time reward feedback from Supabase to steer AI Story Generation.
+    Extracts real-time reward feedback from Supabase to steer AI Story Generation & Viral Remixes.
     - Analyzes which topics, characters, and hooks earned the highest views, velocity, and engagement.
-    - Balances Exploitation (scaling winning comedic dynamics) vs Exploration (testing fresh unrestricted genres).
+    - Compares view velocity across content formats (100% AI Story vs Viral Remix).
+    - Balances Exploitation (scaling winning dynamics) vs Exploration (testing fresh unrestricted genres).
     """
     tracked_videos = get_tracked_videos_for_analytics(limit=50)
     if not tracked_videos:
@@ -318,7 +319,8 @@ def get_rlaf_ai_feedback() -> dict:
             "low_topics": [],
             "top_categories": [],
             "summary": "Channel starting fresh. Explore unrestricted creative concepts across diverse comedic niches.",
-            "strategy_mode": "EXPLORATION (Unrestricted Innovation)"
+            "strategy_mode": "EXPLORATION (Unrestricted Innovation)",
+            "recommended_format": "auto"
         }
 
     sorted_videos = sorted(
@@ -349,16 +351,42 @@ def get_rlaf_ai_feedback() -> dict:
         if tot_views <= 10:
             low_topics.append(title[:60])
 
-    is_exploration = random.random() < 0.35 or len(top_topics) == 0
+    # --- FORMAT VELOCITY COMPARISON (AI Story vs Viral Remix) ---
+    story_rewards = []
+    remix_rewards = []
+    for v in tracked_videos[:20]:
+        hook_style = (v.get("hook_style") or "").lower()
+        score = (
+            calculate_youtube_reward(v.get("yt_views", 0), v.get("yt_likes", 0), v.get("yt_comments", 0), recorded_at_str=v.get("recorded_at")) +
+            calculate_facebook_reward(v.get("fb_views", 0), v.get("fb_shares", 0), v.get("fb_comments", 0), v.get("fb_likes", 0), recorded_at_str=v.get("recorded_at"))
+        )
+        if "story" in hook_style or "animation" in hook_style:
+            story_rewards.append(score)
+        elif "remix" in hook_style or "curation" in hook_style:
+            remix_rewards.append(score)
+
+    avg_story_score = (sum(story_rewards) / len(story_rewards)) if story_rewards else 10.0
+    avg_remix_score = (sum(remix_rewards) / len(remix_rewards)) if remix_rewards else 10.0
+
+    if remix_rewards and avg_remix_score > avg_story_score * 1.2:
+        recommended_format = "remix"
+    elif story_rewards and avg_story_score > avg_remix_score * 1.2:
+        recommended_format = "ai_story"
+    else:
+        # If balanced or unexplored, alternate or explore with slight random variance
+        recommended_format = "remix" if random.random() < 0.50 else "ai_story"
+
+    is_exploration = random.random() < 0.30 or len(top_topics) == 0
     strategy_mode = "EXPLORATION (Unrestricted Innovation)" if is_exploration else "EXPLOITATION (Precision Scaling on Winning Dynamics)"
 
     summary = (
         f"Audience responding strongly to: {', '.join(top_topics[:3])}. "
+        f"Format velocity favors: {recommended_format.upper()}. "
         f"Avoid repeating flat dynamics from: {', '.join(low_topics[:2])}."
-        if top_topics else "Exploring fresh creative frontiers with 0 thematic boundaries."
+        if top_topics else f"Exploring fresh creative frontiers with 0 thematic boundaries (Recommended Format: {recommended_format.upper()})."
     )
 
-    print(f"\n[RLAF ADAPTIVE ENGINE] Mode: {strategy_mode}")
+    print(f"\n[RLAF ADAPTIVE ENGINE] Mode: {strategy_mode} | Recommended Format: {recommended_format.upper()}")
     if top_topics:
         safe_topics = [t.encode('ascii', 'replace').decode() for t in top_topics[:3]]
         print(f"[RLAF ADAPTIVE ENGINE] Reinforcing Top Concepts: {safe_topics}")
@@ -371,7 +399,10 @@ def get_rlaf_ai_feedback() -> dict:
         "low_topics": low_topics,
         "top_categories": top_categories,
         "summary": summary,
-        "strategy_mode": strategy_mode
+        "strategy_mode": strategy_mode,
+        "recommended_format": recommended_format,
+        "avg_story_score": round(avg_story_score, 2),
+        "avg_remix_score": round(avg_remix_score, 2)
     }
 
 def run_meta_optimizer(category: str, platform: str = "youtube", epsilon: float = 0.20) -> dict:
