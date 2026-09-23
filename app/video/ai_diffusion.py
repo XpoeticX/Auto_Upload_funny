@@ -27,6 +27,32 @@ def get_hf_token_pool() -> list:
 
 
 # ---------------------------------------------------------------------------
+# 0. GEMINI OMNI NATIVE VIDEO (Pixar 3D, Voice Acting, 9:16 Portrait, 0 Cost)
+# ---------------------------------------------------------------------------
+def generate_gemini_omni_video(
+    prompt: str,
+    output_path: str,
+    aspect_ratio: str = "9:16",
+    timeout_sec: int = 240
+) -> str:
+    """
+    Generates a full 9:16 animated video with native character speech and sound effects
+    directly via Gemini Pro Omni Studio (gemini.google.com/videos).
+    """
+    try:
+        from app.video.gemini_browser import generate_video_via_gemini_omni
+        vid = generate_video_via_gemini_omni(prompt, output_path, aspect_ratio=aspect_ratio, timeout_sec=timeout_sec)
+        if vid and os.path.exists(vid) and os.path.getsize(vid) > 100_000:
+            print(f"[GEMINI OMNI] Generated video with native speech/sound: {output_path}")
+            return output_path
+        else:
+            print("[GEMINI OMNI] Video generation returned empty. Falling back...")
+    except Exception as e:
+        print(f"[GEMINI OMNI] Video generation error: {e}")
+    return None
+
+
+# ---------------------------------------------------------------------------
 # 1. HERO KEYFRAME GENERATION (FLUX.1-schnell, 576x1024 portrait, 9:16)
 # ---------------------------------------------------------------------------
 def generate_hero_keyframe(

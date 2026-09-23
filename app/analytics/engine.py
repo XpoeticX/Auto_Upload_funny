@@ -79,89 +79,115 @@ class AdaptiveProfileSchema(BaseModel):
 def calculate_youtube_reward(views: int = 0, likes: int = 0, comments: int = 0,
                              benchmark_views: int = 1000, recorded_at_str: str = None) -> float:
     """
-    YouTube Shorts Specific Reward Function:
-    R_yt = [ (Views / Benchmark * 20) + (Likes / (Views + 100) * 60) + (Comments / (Views + 100) * 80) + Bonuses - Penalties ] * Weight(t)
-    YouTube heavily rewards comment interaction loops and high click-through retention.
+    Velocity & Recency weighted YouTube Shorts Reward:
+    - Prioritizes view velocity (views / day) over static total views.
+    - 500 views in 1 day scores significantly higher than 10,000 views accumulated over 1 year.
+    - 14-day exponential half-life ensures fresh momentum steers AI decisions.
     """
-    reach_score = (views / max(1, benchmark_views)) * 20.0
+    delta_days = 1.0
+    if recorded_at_str:
+        try:
+            clean_ts = recorded_at_str.replace("Z", "+00:00")
+            rec_dt = datetime.datetime.fromisoformat(clean_ts)
+            now_dt = datetime.datetime.now(datetime.timezone.utc)
+            delta_sec = max(60.0, (now_dt - rec_dt).total_seconds())
+            delta_days = delta_sec / 86400.0
+        except Exception:
+            delta_days = 7.0
+
+    # 1. View Velocity (views per day vs benchmark daily pace)
+    effective_days = max(0.25, delta_days)
+    views_per_day = views / effective_days
+    benchmark_velocity = max(10.0, benchmark_views / 7.0)  # ~142.8 views/day
+    velocity_score = min(200.0, (views_per_day / benchmark_velocity) * 40.0)
+
+    # 2. Cumulative Reach (sub-linear square root so historical bulk doesn't dominate fresh viral spikes)
+    reach_score = min(30.0, math.sqrt(views / max(1.0, benchmark_views)) * 15.0)
+
+    # 3. Engagement ratios
     like_ratio = (likes / (views + 100.0)) * 60.0
     comment_ratio = (comments / (views + 100.0)) * 80.0
-    
-    delta_hours = 0.0
-    time_weight = 1.0
-    if recorded_at_str:
-        try:
-            clean_ts = recorded_at_str.replace("Z", "+00:00")
-            rec_dt = datetime.datetime.fromisoformat(clean_ts)
-            now_dt = datetime.datetime.now(datetime.timezone.utc)
-            delta_sec = max(0.0, (now_dt - rec_dt).total_seconds())
-            delta_hours = delta_sec / 3600.0
-            time_weight = math.exp(-(math.log(2.0) / 7.0) * (delta_sec / 86400.0))
-        except Exception:
-            delta_hours = 48.0
-            time_weight = 1.0
-            
-    penalty = 0.0
+
+    # 4. Recency decay (14-day half-life: 1 day = 0.95, 365 days = 0.00000001)
+    time_weight = math.exp(-(math.log(2.0) / 14.0) * delta_days)
+
     bonus = 0.0
-    if views >= 50000:
-        bonus = 100.0
-    elif views >= benchmark_views:
-        bonus = 25.0
-    elif delta_hours < 48.0:
-        penalty = 0.0
-    elif views < 100:
-        penalty = 60.0
-    elif views < 500:
+    penalty = 0.0
+    if views_per_day >= 500.0 or views >= 10000:
+        bonus = 50.0
+    elif views_per_day >= benchmark_velocity:
+        bonus = 20.0
+
+    if delta_days > 3.0 and views_per_day < 5.0:
         penalty = 30.0
-        
-    return round((reach_score + like_ratio + comment_ratio + bonus - penalty) * time_weight, 2)
+
+    raw_score = velocity_score + reach_score + like_ratio + comment_ratio + bonus - penalty
+    return round(raw_score * time_weight, 2)
 
 def calculate_facebook_reward(views: int = 0, shares: int = 0, comments: int = 0, likes: int = 0,
-                              benchmark_views: int = 1000, recorded_at_str: str = None) -> float:
+                              benchmark_views: int = 1000, recorded_at_str: str = None,
+                              avg_watch_sec: float = 0.0) -> float:
     """
-    Facebook Reels Specific Reward Function:
-    R_fb = [ (Views / Benchmark * 20) + (Shares / (Views + 100) * 120) + (Comments / (Views + 100) * 60) + Bonuses - Penalties ] * Weight(t)
-    Facebook algorithm heavily rewards viral social shares to external feeds and friends.
+    Velocity & Average Watch Time weighted Facebook Reels Reward:
+    - Prioritizes view velocity (views / day) over static total views.
+    - Factors in average watch time / retention (e.g. 5.4s+ on short reels = high completion bonus).
+    - Heavy weighting for social shares (feed shares to friends).
+    - 14-day exponential half-life ensures fresh viral hits dominate stale old uploads.
     """
-    reach_score = (views / max(1, benchmark_views)) * 20.0
-    share_ratio = (shares / (views + 100.0)) * 120.0
-    comment_ratio = (comments / (views + 100.0)) * 60.0
-    
-    delta_hours = 0.0
-    time_weight = 1.0
+    delta_days = 1.0
     if recorded_at_str:
         try:
             clean_ts = recorded_at_str.replace("Z", "+00:00")
             rec_dt = datetime.datetime.fromisoformat(clean_ts)
             now_dt = datetime.datetime.now(datetime.timezone.utc)
-            delta_sec = max(0.0, (now_dt - rec_dt).total_seconds())
-            delta_hours = delta_sec / 3600.0
-            time_weight = math.exp(-(math.log(2.0) / 7.0) * (delta_sec / 86400.0))
+            delta_sec = max(60.0, (now_dt - rec_dt).total_seconds())
+            delta_days = delta_sec / 86400.0
         except Exception:
-            delta_hours = 48.0
-            time_weight = 1.0
-            
-    penalty = 0.0
+            delta_days = 7.0
+
+    # 1. View Velocity
+    effective_days = max(0.25, delta_days)
+    views_per_day = views / effective_days
+    benchmark_velocity = max(10.0, benchmark_views / 7.0)  # ~142.8 views/day
+    velocity_score = min(200.0, (views_per_day / benchmark_velocity) * 40.0)
+
+    # 2. Cumulative Reach
+    reach_score = min(30.0, math.sqrt(views / max(1.0, benchmark_views)) * 15.0)
+
+    # 3. Social Interaction Ratios
+    share_ratio = (shares / (views + 100.0)) * 120.0
+    comment_ratio = (comments / (views + 100.0)) * 60.0
+    like_ratio = (likes / (views + 100.0)) * 40.0
+
+    # 4. Average Watch Time / Retention Score
+    watch_score = 0.0
+    if avg_watch_sec > 0.0:
+        # Typical Short is 10-15s; 6s+ is 40-50%+ retention
+        watch_score = min(40.0, (avg_watch_sec / 7.0) * 25.0)
+
+    # 5. Recency Decay (14-day half-life)
+    time_weight = math.exp(-(math.log(2.0) / 14.0) * delta_days)
+
     bonus = 0.0
-    if views >= 50000 or shares >= 500:
-        bonus = 100.0
-    elif views >= benchmark_views:
-        bonus = 25.0
-    elif delta_hours < 48.0:
-        penalty = 0.0
-    elif views < 100:
-        penalty = 60.0
-    elif views < 500:
+    penalty = 0.0
+    if views_per_day >= 500.0 or views >= 10000:
+        bonus = 50.0
+    elif views_per_day >= benchmark_velocity:
+        bonus = 20.0
+
+    if delta_days > 3.0 and views_per_day < 5.0:
         penalty = 30.0
-        
-    return round((reach_score + share_ratio + comment_ratio + bonus - penalty) * time_weight, 2)
+
+    raw_score = velocity_score + reach_score + share_ratio + comment_ratio + like_ratio + watch_score + bonus - penalty
+    return round(raw_score * time_weight, 2)
 
 def calculate_reward_points(yt_views: int = 0, yt_likes: int = 0, yt_comments: int = 0,
                            fb_views: int = 0, fb_shares: int = 0, fb_comments: int = 0, fb_likes: int = 0,
-                           benchmark_views: int = 1000, recorded_at_str: str = None) -> float:
+                           benchmark_views: int = 1000, recorded_at_str: str = None,
+                           fb_avg_watch_sec: float = 0.0) -> float:
     """Calculates cumulative score across both platforms."""
     yt_score = calculate_youtube_reward(yt_views, yt_likes, yt_comments, benchmark_views, recorded_at_str)
-    fb_score = calculate_facebook_reward(fb_views, fb_shares, fb_comments, fb_likes, benchmark_views, recorded_at_str)
+    fb_score = calculate_facebook_reward(fb_views, fb_shares, fb_comments, fb_likes, benchmark_views, recorded_at_str, fb_avg_watch_sec)
     return round(yt_score + fb_score, 2)
 
 def fetch_and_update_metrics() -> None:
@@ -205,40 +231,60 @@ def fetch_and_update_metrics() -> None:
 
         if fb_id and fb_token:
             try:
-                # 1. Fetch likes, comments, shares from Video / Post object
+                # 1. Fetch views, comments, likes, and post_id directly from the Video object
                 fb_url = f"https://graph.facebook.com/v19.0/{fb_id}"
                 params = {
-                    "fields": "shares,comments.summary(true),likes.summary(true)",
+                    "fields": "views,comments.summary(true),likes.summary(true),post_id",
                     "access_token": fb_token
                 }
                 r = requests.get(fb_url, params=params, timeout=10)
                 if r.status_code == 200:
                     fb_data = r.json()
-                    fb_shares = int(fb_data.get("shares", {}).get("count", 0) if isinstance(fb_data.get("shares"), dict) else 0)
-                    fb_comments = int(fb_data.get("comments", {}).get("summary", {}).get("total_count", 0))
-                    fb_likes = int(fb_data.get("likes", {}).get("summary", {}).get("total_count", 0))
+                    fb_views = int(fb_data.get("views", 0) or 0)
+                    fb_comments = int(fb_data.get("comments", {}).get("summary", {}).get("total_count", 0) or 0)
+                    fb_likes = int(fb_data.get("likes", {}).get("summary", {}).get("total_count", 0) or 0)
                     
-                # 2. Fetch real view counts from video_insights
-                ins_url = f"https://graph.facebook.com/v19.0/{fb_id}/video_insights"
-                ins_params = {
-                    "metric": "total_video_views",
-                    "access_token": fb_token
-                }
-                ins_r = requests.get(ins_url, params=ins_params, timeout=10)
-                if ins_r.status_code == 200:
-                    ins_data = ins_r.json().get("data", [])
-                    for m in ins_data:
-                        if m.get("name") == "total_video_views":
+                    # Fetch shares from the associated post object if available
+                    post_id = fb_data.get("post_id")
+                    if post_id:
+                        try:
+                            p_url = f"https://graph.facebook.com/v19.0/{post_id}"
+                            p_res = requests.get(p_url, params={"fields": "shares", "access_token": fb_token}, timeout=5)
+                            if p_res.status_code == 200:
+                                p_data = p_res.json()
+                                fb_shares = int(p_data.get("shares", {}).get("count", 0) if isinstance(p_data.get("shares"), dict) else 0)
+                        except Exception:
+                            pass
+                            
+                # 2. Query video_insights for average watch time & fallback plays
+                fb_avg_watch_sec = 0.0
+                try:
+                    ins_url = f"https://graph.facebook.com/v19.0/{fb_id}/video_insights"
+                    ins_params = {
+                        "metric": "post_video_avg_time_watched,fb_reels_total_plays,blue_reels_play_count",
+                        "access_token": fb_token
+                    }
+                    ins_r = requests.get(ins_url, params=ins_params, timeout=10)
+                    if ins_r.status_code == 200:
+                        ins_data = ins_r.json().get("data", [])
+                        for m in ins_data:
+                            m_name = m.get("name")
                             vals = m.get("values", [])
-                            if vals:
-                                fb_views = int(vals[0].get("value", 0))
-                elif r.status_code == 200 and "views" in fb_data:
-                    fb_views = int(fb_data.get("views", 0))
+                            if not vals:
+                                continue
+                            val = vals[0].get("value", 0)
+                            if m_name == "post_video_avg_time_watched":
+                                fb_avg_watch_sec = round(float(val) / 1000.0, 2)
+                            elif m_name in ["fb_reels_total_plays", "blue_reels_play_count"]:
+                                if int(val) > fb_views:
+                                    fb_views = int(val)
+                except Exception:
+                    pass
             except Exception as e:
                 print(f"Could not fetch Facebook metrics for {fb_id}: {e}")
 
         yt_reward = calculate_youtube_reward(yt_views, yt_likes, yt_comments, recorded_at_str=recorded_at)
-        fb_reward = calculate_facebook_reward(fb_views, fb_shares, fb_comments, fb_likes, recorded_at_str=recorded_at)
+        fb_reward = calculate_facebook_reward(fb_views, fb_shares, fb_comments, fb_likes, recorded_at_str=recorded_at, avg_watch_sec=fb_avg_watch_sec)
         combined_score = round(yt_reward + fb_reward, 2)
 
         # Only update metrics we actually fetched — never overwrite real data with zeros
@@ -247,10 +293,14 @@ def fetch_and_update_metrics() -> None:
             updates["yt_views"] = yt_views
             updates["yt_likes"] = yt_likes
             updates["yt_comments"] = yt_comments
-        if fb_id and fb_token and (fb_views > 0 or fb_likes > 0 or fb_shares > 0 or fb_comments > 0):
-            updates["fb_views"] = fb_views
-            updates["fb_shares"] = fb_shares
-            updates["fb_comments"] = fb_comments
+        if fb_id and fb_token:
+            # Preserve existing if current is 0 (API transient failure), else update
+            best_views = max(fb_views, int(item.get("fb_views", 0) or 0))
+            best_shares = max(fb_shares, int(item.get("fb_shares", 0) or 0))
+            best_comments = max(fb_comments, int(item.get("fb_comments", 0) or 0))
+            updates["fb_views"] = best_views
+            updates["fb_shares"] = best_shares
+            updates["fb_comments"] = best_comments
         update_video_metrics(video_id, updates)
 
     print("Decoupled platform performance ledgers updated successfully.")
@@ -439,12 +489,9 @@ def run_meta_optimizer(category: str, platform: str = "youtube", epsilon: float 
     ]
     api_keys = [k for k in api_keys if k and str(k).strip() != "None"]
     
-    # Model Waterfall: Best model first (3.8 -> 3.7 -> 3.6 -> 3.5 -> 2.5)
+    # Model Waterfall: Verified active Google GenAI model
     model_names = [
-        "gemini-3.8-flash",
-        "gemini-3.7-flash",
         "gemini-3.6-flash",
-        "gemini-3.5-flash",
         "gemini-2.5-flash",
     ]
     

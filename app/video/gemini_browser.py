@@ -7,11 +7,14 @@ No multiple windows, no multiple chats.
 import os
 import time
 import atexit
+from typing import Optional
+import requests
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
 BROWSER_PROFILE_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "browser_profile")
 BRAVE_PATH = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
 GEMINI_URL = "https://gemini.google.com/app"
+GEMINI_VIDEOS_URL = "https://gemini.google.com/videos"
 
 
 def _ensure_dirs():
@@ -137,9 +140,28 @@ def _dismiss_overlays(page):
         pass
 
 
+def ensure_model_pro(page) -> bool:
+    """Ensures Gemini model is set to 3.1 Pro (not Flash)."""
+    try:
+        model_btn = page.query_selector('button:has-text("Flash"), button:has-text("Pro"), [aria-label*="model"], [aria-label*="Model"]')
+        if model_btn and "Pro" not in model_btn.inner_text():
+            model_btn.click()
+            time.sleep(0.5)
+            pro_opt = page.query_selector('[role="menuitem"]:has-text("Pro"), [role="option"]:has-text("Pro"), button:has-text("Pro")')
+            if pro_opt:
+                pro_opt.click()
+                time.sleep(0.5)
+                print("[GEMINI BROWSER] Model set to Gemini Pro (3.1 Pro).")
+                return True
+    except Exception as e:
+        print(f"[GEMINI BROWSER] Model switch error: {e}")
+    return False
+
+
 def _find_and_type_prompt(page, text: str) -> bool:
     """Finds the input field in the CURRENT chat and enters the prompt."""
     _dismiss_overlays(page)
+    ensure_model_pro(page)
 
     selectors = [
         'div[contenteditable="true"]',
@@ -331,8 +353,117 @@ def generate_image_via_browser(
         print(f"[GEMINI BROWSER] Error: {e}")
         return None
 
+
+def generate_video_via_gemini_omni(
+    prompt: str,
+    output_path: str,
+    aspect_ratio: str = "9:16",
+    timeout_sec: int = 240,
+) -> Optional[str]:
+    """
+    Generates a full motion video directly using Gemini Omni Video Studio (gemini.google.com/videos).
+    - Aspect Ratio: Portrait (9:16) for vertical Shorts/Reels.
+    - Full motion 3D animation with native character speech and audio.
+    - Downloads the resulting MP4 directly without spamming the chat.
+    """
+    _ensure_dirs()
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+
+    try:
+        page = _controller.get_page(headless=True)
+        if "videos" not in page.url:
+            print("[GEMINI OMNI] Navigating to Gemini Videos Studio...")
+            page.goto(GEMINI_VIDEOS_URL, wait_until="domcontentloaded", timeout=45_000)
+            time.sleep(3)
+
+        _dismiss_overlays(page)
+        ensure_model_pro(page)
+
+        # Set aspect ratio to Portrait (9:16)
+        if aspect_ratio == "9:16":
+            ratio_btn = page.query_selector('button:has-text("Landscape"), button:has-text("Portrait")')
+            if ratio_btn and "Portrait" not in ratio_btn.inner_text():
+                ratio_btn.click()
+                time.sleep(0.5)
+                portrait_item = page.query_selector('input-companion-item[aria-label*="Portrait"]')
+                if portrait_item:
+                    portrait_item.click()
+                    time.sleep(0.5)
+                    print("[GEMINI OMNI] Aspect ratio locked to Portrait (9:16).")
+
+        # Enter prompt
+        inp = page.query_selector('div[contenteditable="true"]')
+        if not inp:
+            print("[GEMINI OMNI] Could not find video prompt input field.")
+            return None
+
+        inp.click()
+        time.sleep(0.3)
+        page.keyboard.press("Control+A")
+        page.keyboard.press("Backspace")
+        time.sleep(0.2)
+        page.keyboard.type(prompt, delay=4)
+        time.sleep(0.8)
+
+        # Send
+        send_btn = page.query_selector('button[aria-label*="Send message"], button[aria-label*="Send"]')
+        if send_btn and send_btn.is_visible():
+            send_btn.click(force=True)
+        else:
+            page.keyboard.press("Enter")
+
+        print(f"[GEMINI OMNI] Prompt sent. Waiting up to {timeout_sec}s for video generation...")
+
+        start_time = time.time()
+        video_src = None
+
+        while time.time() - start_time < timeout_sec:
+            time.sleep(5)
+            # Check if generation finished (stop button gone and video element present)
+            stop_btn = page.query_selector('button[aria-label*="Stop"], button[aria-label*="Cancel"], mat-icon:has-text("stop")')
+            if not stop_btn or not stop_btn.is_visible():
+                vids = page.query_selector_all("video")
+                for v in vids:
+                    s = v.get_attribute("src") or v.evaluate("el => el.currentSrc")
+                    if s and ("contribution.usercontent.google.com" in s or s.startswith("http")):
+                        video_src = s
+                        break
+                if video_src:
+                    print(f"[GEMINI OMNI] Video generation complete! URL: {video_src[:80]}...")
+                    break
+
+        if not video_src:
+            print("[GEMINI OMNI] Timeout waiting for video generation.")
+            debug_shot = "data/temp/gemini_omni_timeout.png"
+            try:
+                page.screenshot(path=debug_shot)
+            except Exception:
+                pass
+            return None
+
+        # Download video directly using session cookies & UA
+        cookies = page.context.cookies()
+        cookie_header = "; ".join([f"{c['name']}={c['value']}" for c in cookies])
+        ua = page.evaluate("navigator.userAgent")
+
+        r = requests.get(video_src, headers={"User-Agent": ua, "Cookie": cookie_header}, stream=True, timeout=60)
+        if r.status_code == 200:
+            with open(output_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=32768):
+                    f.write(chunk)
+            file_size = os.path.getsize(output_path)
+            if file_size > 100_000:
+                print(f"[GEMINI OMNI] Successfully saved video: {output_path} ({file_size} bytes)")
+                return output_path
+            else:
+                print(f"[GEMINI OMNI] Downloaded file too small ({file_size} bytes).")
+                return None
+        else:
+            print(f"[GEMINI OMNI] Download failed with HTTP {r.status_code}")
+            return None
+
     except Exception as e:
-        print(f"[GEMINI BROWSER] Error: {e}")
+        print(f"[GEMINI OMNI] Error during video generation: {e}")
         return None
 
 
@@ -350,3 +481,4 @@ def check_login_status() -> bool:
     except Exception as e:
         print(f"[GEMINI BROWSER] Check failed: {e}")
         return False
+

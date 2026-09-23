@@ -7,10 +7,12 @@ import re
 import math
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
+from PIL import Image, ImageDraw, ImageFont
 from google import genai
 from app.video.ai_diffusion import (
     generate_ai_video_from_prompt,
     generate_ai_video_from_image,
+    generate_gemini_omni_video,
     generate_hero_keyframe,
     is_video_empty,
     generate_pan_zoom_fallback,
@@ -18,6 +20,7 @@ from app.video.ai_diffusion import (
 )
 from app.analytics.engine import get_rlaf_ai_feedback
 from app.story.audio_director import build_scene_audio_timeline
+from app.database import get_tracked_videos_for_analytics
 
 class FoleyCue(BaseModel):
     timestamp_sec: float
@@ -38,7 +41,8 @@ class StoryScene(BaseModel):
     arc_phase: str = Field(default="Hook & Rising Action", alias="act_name")
     duration_sec: float = 2.8
     diffusion_prompt: str = Field(default="", alias="visual_prompt")
-    negative_prompt: str = "static, blurry, 2D, talking, watermark, text, low quality"
+    negative_prompt: str = "static, blurry, 2D, watermark, text, low quality, distorted"
+    dialogue: Optional[str] = None  # Character voice acting line
     foley_cues: Optional[List[FoleyCue]] = None
     # Legacy fields (backward compat)
     foley_sound_type: Optional[str] = None
@@ -62,6 +66,8 @@ class ViralStoryScript(BaseModel):
     fb_title: str = ""
     tags: List[str] = []
     related_queries: Optional[List[str]] = None
+    hook_text: Optional[str] = None
+    cta_text: Optional[str] = None
 
 FALLBACK_CONCEPTS = [
     {
@@ -580,15 +586,197 @@ def _inject_default_foley_cues(story_data: Dict):
             "target_loudnorm_lufs": -14.0
         }
 
+def sanitize_viral_title(title: Optional[str], default: str = "Funny AI Animation Short 😂 #shorts #viral") -> str:
+    """
+    Sanitizes YouTube and Facebook titles:
+    - Purges Chinese, Japanese, Korean (CJK), Cyrillic, Arabic, and non-Latin foreign scripts.
+    - Preserves standard ASCII English, numbers, punctuation, and emoji symbols.
+    - If the cleaned string has fewer than 5 alphanumeric characters, falls back to default.
+    - Ensures mandatory #shorts and #viral hashtags are present for YouTube titles.
+    """
+    if not title or not isinstance(title, str):
+        return default
+
+    # Remove CJK characters, full-width punctuation, Cyrillic, Arabic glyphs
+    cjk_pattern = re.compile(
+        r'[\u4e00-\u9fff\u3400-\u4dbf\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uffef\uac00-\ud7af\u0400-\u04ff\u0600-\u06ff]'
+    )
+    cleaned = cjk_pattern.sub('', title).strip()
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+
+    alpha_chars = re.findall(r'[a-zA-Z0-9]', cleaned)
+    if len(alpha_chars) < 5:
+        return default
+
+    # If this looks like a YouTube title, ensure standard viral tags
+    if "#" in default:
+        if "#shorts" not in cleaned.lower():
+            cleaned += " #shorts"
+        if "#viral" not in cleaned.lower():
+            cleaned += " #viral"
+
+    return cleaned
+
+def strip_emojis(text: str) -> str:
+    """
+    Removes emoji characters and symbols from text before passing to Pillow
+    to avoid missing glyph square boxes [] in standard system fonts.
+    """
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F1E0-\U0001F1FF"  # flags
+        "\U00002702-\U000027B0"
+        "\U000024C2-\U0001F251"
+        "\U0001F900-\U0001F9FF"  # Supplemental Symbols
+        "\U0001FA00-\U0001FA6F"
+        "\U0001FA70-\U0001FAFF"
+        "\U00002600-\U000026FF"  # Misc symbols
+        "]+",
+        flags=re.UNICODE
+    )
+    clean = emoji_pattern.sub("", text)
+    clean = re.sub(r"[^\x20-\x7E]", "", clean)
+    return re.sub(r"\s+", " ", clean).strip()
+
+def _fit_banner_font(draw: ImageDraw.ImageDraw, text: str, max_width: int = 940, initial_size: int = 54) -> ImageFont.ImageFont:
+    """Finds the best bold font and fits it within max_width."""
+    size = initial_size
+    candidates = [
+        "C:/Windows/Fonts/impact.ttf",
+        "C:/Windows/Fonts/arialbd.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf"
+    ]
+    font_path = None
+    for c in candidates:
+        if os.path.exists(c):
+            font_path = c
+            break
+
+    while size >= 24:
+        if font_path:
+            try:
+                font = ImageFont.truetype(font_path, size)
+            except Exception:
+                try:
+                    font = ImageFont.truetype("arial.ttf", size)
+                except Exception:
+                    font = ImageFont.load_default()
+                    return font
+        else:
+            try:
+                font = ImageFont.truetype("arial.ttf", size)
+            except Exception:
+                font = ImageFont.load_default()
+                return font
+
+        bbox = draw.textbbox((0, 0), text, font=font)
+        if (bbox[2] - bbox[0]) <= max_width:
+            return font
+        size -= 4
+    return font
+
+def create_hook_banner(text: str, output_path: str, width: int = 1080, height: int = 180) -> Optional[str]:
+    """
+    Renders a punchy, high-contrast on-screen text hook pill banner (Pillow PNG with transparency).
+    Positioned in the upper safe zone to capture silent scrollers within the first 2.8 seconds.
+    """
+    try:
+        clean_text = strip_emojis(text).upper()
+        if not clean_text:
+            clean_text = "WAIT FOR IT... DON'T BLINK!"
+
+        img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        font = _fit_banner_font(draw, clean_text, max_width=width - 100, initial_size=54)
+
+        bbox = draw.textbbox((0, 0), clean_text, font=font)
+        t_w = bbox[2] - bbox[0]
+        t_h = bbox[3] - bbox[1]
+
+        pad_x, pad_y = 36, 18
+        rect_w = min(width - 60, t_w + pad_x * 2)
+        rect_h = t_h + pad_y * 2
+        r_x0 = (width - rect_w) / 2
+        r_y0 = (height - rect_h) / 2
+        r_x1 = r_x0 + rect_w
+        r_y1 = r_y0 + rect_h
+
+        # Dark translucent pill with crisp white/gold border
+        draw.rounded_rectangle([r_x0, r_y0, r_x1, r_y1], radius=22, fill=(0, 0, 0, 205), outline=(255, 255, 255, 220), width=3)
+
+        tx = (width - t_w) / 2
+        ty = (height - t_h) / 2 - bbox[1]
+
+        # Bold vivid yellow text with heavy black stroke for instant readability
+        draw.text((tx, ty), clean_text, font=font, fill=(255, 225, 0, 255), stroke_width=3, stroke_fill=(0, 0, 0, 255))
+
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        img.save(output_path)
+        print(f"[STORY DIRECTOR] Hook banner generated: '{clean_text}' -> {output_path}")
+        return output_path
+    except Exception as e:
+        print(f"[STORY DIRECTOR] Hook banner generation notice: {e}")
+        return None
+
+def create_cta_banner(text: str, output_path: str, width: int = 1080, height: int = 160) -> Optional[str]:
+    """
+    Renders a high-contrast on-screen CTA pill banner for the final climax/ending.
+    Positioned in the lower safe zone (above mobile player controls).
+    """
+    try:
+        clean_text = strip_emojis(text).upper()
+        if not clean_text:
+            clean_text = "SUBSCRIBE FOR PART 2!"
+
+        img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        font = _fit_banner_font(draw, clean_text, max_width=width - 100, initial_size=48)
+
+        bbox = draw.textbbox((0, 0), clean_text, font=font)
+        t_w = bbox[2] - bbox[0]
+        t_h = bbox[3] - bbox[1]
+
+        pad_x, pad_y = 32, 16
+        rect_w = min(width - 60, t_w + pad_x * 2)
+        rect_h = t_h + pad_y * 2
+        r_x0 = (width - rect_w) / 2
+        r_y0 = (height - rect_h) / 2
+        r_x1 = r_x0 + rect_w
+        r_y1 = r_y0 + rect_h
+
+        # Dark translucent pill with vibrant red/coral outline
+        draw.rounded_rectangle([r_x0, r_y0, r_x1, r_y1], radius=20, fill=(0, 0, 0, 205), outline=(255, 80, 80, 230), width=3)
+
+        tx = (width - t_w) / 2
+        ty = (height - t_h) / 2 - bbox[1]
+
+        # Bold white text with black stroke
+        draw.text((tx, ty), clean_text, font=font, fill=(255, 255, 255, 255), stroke_width=3, stroke_fill=(0, 0, 0, 255))
+
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        img.save(output_path)
+        print(f"[STORY DIRECTOR] CTA banner generated: '{clean_text}' -> {output_path}")
+        return output_path
+    except Exception as e:
+        print(f"[STORY DIRECTOR] CTA banner generation notice: {e}")
+        return None
+
 def generate_viral_story_concept(rlaf_feedback: Optional[Dict] = None) -> Dict:
     """
-    Uses Gemini / Qwen-72B to autonomously brainstorm ultra-viral surrealist AI animated short stories
+    Uses Gemini 3.6 Flash / Qwen-72B to autonomously brainstorm ultra-viral surrealist AI animated short stories
     following the strict 5-Act Universal Two-Wave Conflict Arc with protagonist/environment lock.
+    Enforces anti-repetition rules against recent uploads and strict English title sanitization.
     """
     api_keys = [
         os.environ.get("GEMINI_API_KEY"),
         os.environ.get("GEMINI_API_KEY_2"),
         os.environ.get("GEMINI_API_KEY_3"),
+        os.environ.get("GEMINI_API_KEY_4"),
     ]
     api_keys = [k for k in api_keys if k and str(k).strip() != "None"]
 
@@ -603,11 +791,16 @@ def generate_viral_story_concept(rlaf_feedback: Optional[Dict] = None) -> Dict:
         if summary or top_cats:
             feedback_context = f"\nChannel Specific Feedback:\n- Summary: {summary}\n- Top Performing on Your Channel: {top_cats}"
 
+    # Query recent video history to prevent concept repetition
+    recent_videos = get_tracked_videos_for_analytics(limit=8)
+    recent_titles = [v.get("title", "") for v in recent_videos if v.get("title")]
+    recent_summary = "\n".join([f"- {t}" for t in recent_titles[:6]]) if recent_titles else "None"
+
     prompt = f"""You are an expert Pixar-grade visual storyteller and viral retention director for AI animated YouTube Shorts and Facebook Reels (producing 10M to 80M+ view hits).
 
 Your task is to output a single, cohesive, self-contained mini-movie (14 seconds) strictly structured around the Universal Two-Wave Conflict Arc.
 
-Never generate disjointed scenes, random clips, montage cuts, or talking-head intros. Every story must feature a clear single protagonist, continuous object/environment permanence, and 100% visual/physical comedy (zero spoken dialogue).
+Never generate disjointed scenes, random clips, montage cuts, or talking-head intros. Every story must feature a clear single protagonist, continuous object/environment permanence, and 100% visual/physical comedy.
 
 === 1. CURRENT GLOBAL VIRAL MARKET INTELLIGENCE ===
 {market_context}
@@ -615,7 +808,13 @@ Never generate disjointed scenes, random clips, montage cuts, or talking-head in
 === 2. CHANNEL AUDIENCE DATA ===
 {feedback_context or "Channel is in growth phase. Prioritize the high-velocity Global Trends above!"}
 
-=== 3. CORE RULES OF CONTINUITY & ARC DYNAMICS ===
+=== 3. STRICT ANTI-REPETITION CONSTRAINT (CRITICAL) ===
+The following characters and stories were posted recently on our channel:
+{recent_summary}
+DO NOT repeat any of these characters, animals, food items, or storylines!
+Choose a completely FRESH protagonist and premise from a different niche (e.g. Baby Penguin, Panda Barista, Capybara Lifeguard, Alien Granny, etc.).
+
+=== 4. CORE RULES OF CONTINUITY & ARC DYNAMICS ===
 
 1. **Protagonist Lock:** Pick ONE distinct character (e.g., Hamster Chef, Baby Dino, Robot Barista). Visual attributes, clothing, and props must persist across ALL 5 acts.
 2. **Environment Lock:** The entire short takes place in ONE contiguous set (e.g., kitchen counter, workshop, living room rug).
@@ -637,9 +836,9 @@ Never generate disjointed scenes, random clips, montage cuts, or talking-head in
 
 6. Available Foley SFX (choose ONLY from this palette): whoosh, whoosh_fast, whoosh_high, bonk, boing, ding, ding_high_confirm, crunch, sizzle, meow, bark, quack, knife_chop, mechanical_click, clatter_thump, clatter_multi, crash_multi, rising_hum, slide_whistle_down, object_drop
 
-=== 4. OUTPUT FORMAT (STRICT JSON) ===
+=== 5. OUTPUT FORMAT (STRICT JSON) ===
 Return valid JSON with this exact structure:
-- story_title: string
+- story_title: string in clean English
 - protagonist: object with "name" and "visual_identity" (detailed physical description for prompt consistency)
 - environment: detailed background set description
 - niche: category string
@@ -647,13 +846,16 @@ Return valid JSON with this exact structure:
   - scene_index: 1-5
   - arc_phase: one of "Hook & Immediate Action", "Conflict Spike", "The Comeback", "Rising Action 2", "Climax Payoff"
   - duration_sec: 2.5, 3.0, 2.5, 3.0, 3.0 respectively
+  - dialogue: 1 short, funny cartoon dialogue line spoken by the character in this scene (e.g. "Wait... what was that?!")
   - diffusion_prompt: "Cinematic 3D animation, [visual_identity] in [environment], [specific action], hyper-detailed 3d pixar animation style, cinematic lighting, 8k"
-  - negative_prompt: "static, blurry, 2D, talking, watermark, text, low quality"
+  - negative_prompt: "static, blurry, 2D, watermark, text, low quality"
   - foley_cues: array of 2-3 cues, each with timestamp_sec (relative to scene start), sfx (from palette), volume (1.5-2.8)
 - audio_config: object with bgm_style, bgm_base_volume (0.75), target_loudnorm_lufs (-14.0)
 - music_vibe: "bouncy_comedy"
-- yt_title: viral YouTube title with emojis and #shorts #viral
-- fb_title: Facebook engagement caption under 120 chars
+- yt_title: viral YouTube title strictly in English with emojis and #shorts #viral
+- fb_title: Facebook engagement caption under 120 chars strictly in English
+- hook_text: punchy 3-5 word on-screen text hook in ALL CAPS (e.g. "DON'T BLINK!", "WAIT TILL THE END!")
+- cta_text: punchy 3-5 word on-screen call to action in ALL CAPS (e.g. "SUBSCRIBE FOR PART 2! 🔔")
 - tags: array of relevant hashtag strings
 """
 
@@ -661,7 +863,7 @@ Return valid JSON with this exact structure:
         try:
             client = genai.Client(api_key=k)
             response = client.models.generate_content(
-                model="gemini-3.8-flash",
+                model="gemini-3.6-flash",
                 contents=prompt,
                 config={
                     "response_mime_type": "application/json",
@@ -669,7 +871,15 @@ Return valid JSON with this exact structure:
                 }
             )
             data = json.loads(response.text)
-            print(f"[STORY DIRECTOR] Conceived new 5-act story via Gemini: '{data.get('story_title', data.get('title'))}' in niche '{data.get('niche')}'")
+            # Strict title and hook sanitization
+            data["yt_title"] = sanitize_viral_title(data.get("yt_title"), default=f"{data.get('story_title', data.get('title', 'Funny Moment'))} 😂 #shorts #viral")
+            data["fb_title"] = sanitize_viral_title(data.get("fb_title"), default="Wait till you see what happens! 😂 Tag a friend!")
+            if not data.get("hook_text"):
+                t_clean = strip_emojis(re.sub(r'#\w+', '', data["yt_title"]).strip())
+                data["hook_text"] = (t_clean[:32] if t_clean else "WAIT FOR IT... DON'T BLINK!").upper()
+            if not data.get("cta_text"):
+                data["cta_text"] = "SUBSCRIBE FOR PART 2! 🔔"
+            print(f"[STORY DIRECTOR] Conceived new 5-act story via Gemini 3.6 Flash: '{data.get('story_title', data.get('title'))}' in niche '{data.get('niche')}'")
             return data
         except Exception as e:
             print(f"[STORY DIRECTOR] Gemini notice: {e}")
@@ -679,9 +889,8 @@ Return valid JSON with this exact structure:
     if hf_token:
         try:
             from huggingface_hub import InferenceClient
-            import re
             hf_client = InferenceClient(api_key=hf_token)
-            hf_prompt = prompt + "\nOutput strictly valid JSON. No markdown formatting, no code fences. Just raw JSON."
+            hf_prompt = prompt + "\nOutput strictly valid JSON. No markdown formatting, no code fences. Output strictly in English."
             res = hf_client.chat.completions.create(
                 messages=[{"role": "user", "content": hf_prompt}],
                 model="Qwen/Qwen2.5-72B-Instruct",
@@ -693,21 +902,45 @@ Return valid JSON with this exact structure:
             raw = re.sub(r"^```\s*", "", raw)
             raw = re.sub(r"\s*```$", "", raw)
             data = json.loads(raw.strip())
-            # Normalize title field (Qwen may use story_title or title)
+            # Normalize title field
             if "title" not in data and "story_title" in data:
                 data["title"] = data["story_title"]
             elif "story_title" not in data and "title" in data:
                 data["story_title"] = data["title"]
-            # Inject default foley_cues for scenes that lack them
             _inject_default_foley_cues(data)
+            # Strict title and hook sanitization
+            data["yt_title"] = sanitize_viral_title(data.get("yt_title"), default=f"{data.get('story_title', data.get('title', 'Funny Moment'))} 😂 #shorts #viral")
+            data["fb_title"] = sanitize_viral_title(data.get("fb_title"), default="Wait till you see what happens! 😂 Tag a friend!")
+            if not data.get("hook_text"):
+                t_clean = strip_emojis(re.sub(r'#\w+', '', data["yt_title"]).strip())
+                data["hook_text"] = (t_clean[:32] if t_clean else "WAIT FOR IT... DON'T BLINK!").upper()
+            if not data.get("cta_text"):
+                data["cta_text"] = "SUBSCRIBE FOR PART 2! 🔔"
             print(f"[STORY DIRECTOR] Conceived new 5-act story via Qwen-72B: '{data.get('story_title', data.get('title'))}' in niche '{data.get('niche')}'")
             return data
         except Exception as e:
             print(f"[STORY DIRECTOR] Hugging Face Qwen-72B notice: {e}")
 
+    # Fallback to Curated Concepts (Filtered to avoid recent repetitions)
     import random
-    chosen = random.choice(FALLBACK_CONCEPTS)
-    print(f"[STORY DIRECTOR] Using curated viral concept: '{chosen['title']}'")
+    recent_keywords = [t.lower() for t in recent_titles[:6]]
+    candidate_fallbacks = []
+    for c in FALLBACK_CONCEPTS:
+        c_name = (c.get("character_name") or c.get("title", "")).lower()
+        first_word = c_name.split()[0] if c_name else ""
+        if not any(first_word in r for r in recent_keywords if first_word and len(first_word) > 3):
+            candidate_fallbacks.append(c)
+
+    chosen_pool = candidate_fallbacks if candidate_fallbacks else FALLBACK_CONCEPTS
+    chosen = random.choice(chosen_pool).copy()
+    chosen["yt_title"] = sanitize_viral_title(chosen.get("yt_title"))
+    chosen["fb_title"] = sanitize_viral_title(chosen.get("fb_title"))
+    if not chosen.get("hook_text"):
+        t_clean = strip_emojis(re.sub(r'#\w+', '', chosen["yt_title"]).strip())
+        chosen["hook_text"] = (t_clean[:32] if t_clean else "WAIT FOR IT... DON'T BLINK!").upper()
+    if not chosen.get("cta_text"):
+        chosen["cta_text"] = "SUBSCRIBE FOR PART 2! 🔔"
+    print(f"[STORY DIRECTOR] Using curated viral concept (anti-repetition filtered): '{chosen['title']}'")
     return chosen
 
 def render_story_video(story: Dict, output_path: str) -> Optional[str]:
@@ -741,6 +974,58 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
     environment = story.get("environment", "colorful cartoon kitchen")
     art_style = "Pixar 3D animation style, vibrant colors, soft lighting, sharp focus, cinematic"
 
+    # --- STEP 0: TIER 0 — GEMINI OMNI NATIVE 3D VIDEO (Gemini Pro Studio) ---
+    # Produces full 9:16 vertical Pixar 3D animation with native character speech and sound effects
+    try:
+        dialogues = [sc.get("dialogue") or sc.get("voice_line") for sc in scenes if sc.get("dialogue") or sc.get("voice_line")]
+        first_voice = dialogues[0] if dialogues else "The character speaks excitedly in a cute cartoon voice"
+
+        action_parts = []
+        for sc in scenes[:3]:
+            dp = sc.get("diffusion_prompt", "").replace("hyper-detailed 3d pixar animation style.", "").replace("Pixar 3D style, sharp focus, 8k", "").strip()
+            if dp:
+                action_parts.append(dp[:100])
+        action_str = ". ".join(action_parts)
+
+        omni_prompt = (
+            f"Cinematic Pixar 3D animation, vertical 9:16 portrait. "
+            f"{visual_identity} in {environment}. {action_str}. "
+            f"The character speaks excitedly in a cute cartoon voice: '{first_voice}'. "
+            f"Vibrant colors, cinematic lighting, sharp focus, no watermark, no text"
+        )
+
+        omni_temp_raw = os.path.join("data", "temp", "omni_episode_raw.mp4")
+        omni_video = generate_gemini_omni_video(omni_prompt, omni_temp_raw, aspect_ratio="9:16", timeout_sec=240)
+        if omni_video and os.path.exists(omni_video) and os.path.getsize(omni_video) > 100_000:
+            print("[STORY DIRECTOR] Successfully rendered complete episode via Gemini Omni Studio! Removing watermark & burning on-screen hooks...")
+            hook_text = story.get("hook_text") or "WAIT FOR IT... DON'T BLINK!"
+            cta_text = story.get("cta_text") or "SUBSCRIBE FOR PART 2! 🔔"
+            hook_banner_path = os.path.join("data", "temp", "omni_hook_banner.png")
+            cta_banner_path = os.path.join("data", "temp", "omni_cta_banner.png")
+            create_hook_banner(hook_text, hook_banner_path)
+            create_cta_banner(cta_text, cta_banner_path)
+
+            filter_complex = (
+                "[0:v]delogo=x=570:y=1130:w=70:h=70,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920[v_base];"
+                "[v_base][1:v]overlay=0:280:enable='between(t,0,2.8)'[v_hook];"
+                "[v_hook][2:v]overlay=0:1400:enable='gte(t,11.5)'[v_out]"
+            )
+            subprocess.run([
+                "ffmpeg", "-y",
+                "-i", omni_video,
+                "-i", hook_banner_path,
+                "-i", cta_banner_path,
+                "-filter_complex", filter_complex,
+                "-map", "[v_out]", "-map", "0:a?",
+                "-r", "30", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-b:a", "256k", output_path
+            ], capture_output=True, check=True)
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 100_000:
+                return output_path
+    except Exception as e:
+        print(f"[STORY DIRECTOR] Gemini Omni tier notice: {e}. Proceeding to multi-scene pipeline...")
+
+    # --- STEP 1: Generate Hero Reference Keyframe ---
     hero_prompt = (
         f"{visual_identity}, {environment}, full body character pose, centered composition, "
         f"{art_style}, 9:16 vertical portrait, detailed character design sheet"
@@ -888,12 +1173,33 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
     total_dur = sum(float(sc.get("duration_sec", 2.8 if idx < len(scenes) - 1 else 3.0)) for idx, sc in enumerate(scenes))
     build_scene_audio_timeline(story, total_duration=total_dur, output_wav=master_audio)
 
+    # Prepare on-screen hook and CTA banners
+    hook_text = story.get("hook_text")
+    if not hook_text:
+        t_clean = strip_emojis(re.sub(r'#\w+', '', story.get("yt_title", "")).strip())
+        hook_text = (t_clean[:32] if t_clean else "WAIT FOR IT... DON'T BLINK!").upper()
+    cta_text = story.get("cta_text") or "SUBSCRIBE FOR PART 2! 🔔"
+
+    hook_banner_path = os.path.join("data", "temp", "story_hook_banner.png")
+    cta_banner_path = os.path.join("data", "temp", "story_cta_banner.png")
+    create_hook_banner(hook_text, hook_banner_path)
+    create_cta_banner(cta_text, cta_banner_path)
+
+    cta_start_t = max(0.0, total_dur - 2.8)
+    filter_complex = (
+        "[0:v][1:v]overlay=0:280:enable='between(t,0,2.8)'[v_hook];"
+        f"[v_hook][2:v]overlay=0:1400:enable='gte(t,{cta_start_t:.1f})'[vout]"
+    )
+
     cmd_mux = [
         "ffmpeg", "-y",
         "-i", visual_only,
+        "-i", hook_banner_path,
+        "-i", cta_banner_path,
         "-i", master_audio,
-        "-map", "0:v", "-map", "1:a",
-        "-c:v", "copy",
+        "-filter_complex", filter_complex,
+        "-map", "[vout]", "-map", "3:a",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "256k",
         "-shortest",
         output_path
@@ -901,7 +1207,7 @@ def render_story_video(story: Dict, output_path: str) -> Optional[str]:
     subprocess.run(cmd_mux, capture_output=True, check=True)
 
     if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
-        print(f"[STORY DIRECTOR] Successfully rendered {len(rendered_scene_vids)}-scene story: {output_path}")
+        print(f"[STORY DIRECTOR] Successfully rendered {len(rendered_scene_vids)}-scene story with on-screen hook & CTA overlays: {output_path}")
         return output_path
     return None
 
@@ -915,7 +1221,7 @@ def build_viral_yt_description(story: Dict) -> str:
     - Semantic search keyword block for recommendation algorithm
     - Trending hashtags & remix permission notice
     """
-    yt_title = story.get("yt_title", "Funny AI Animation Short 😂 #shorts #viral")
+    yt_title = sanitize_viral_title(story.get("yt_title"), default="Funny AI Animation Short 😂 #shorts #viral")
     char_name = story.get("character_name", "Funny Animal")
     niche = story.get("niche", "Animal Comedy")
     tags = story.get("tags", ["shorts", "animation", "funny", "viral", "comedy"])
@@ -974,7 +1280,7 @@ def build_viral_fb_description(story: Dict) -> str:
     - High-comment trigger: Asks a direct question or prompt to ignite comment engagement.
     - Clean, native Reels hashtag cluster.
     """
-    fb_title = story.get("fb_title", "Wait till you see what happens! 😂 Tag a friend!")
+    fb_title = sanitize_viral_title(story.get("fb_title"), default="Wait till you see what happens! 😂 Tag a friend!")
     tags = story.get("tags", ["funny", "animation", "viral", "comedy"])
     
     clean_tags = [f"#{re.sub(r'[^a-zA-Z0-9]', '', t.lower())}" for t in tags if t.lower() not in ["shorts", "ytshorts"]]

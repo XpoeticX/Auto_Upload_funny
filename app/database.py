@@ -21,6 +21,9 @@ def init_db():
     else:
         print("WARNING: Supabase credentials not found. Tracking will be disabled.")
 
+# Auto-initialize on import if credentials exist
+init_db()
+
 def is_video_used(video_id: str) -> bool:
     """Checks if a video ID is already in the database."""
     if not supabase:
