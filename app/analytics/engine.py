@@ -307,42 +307,57 @@ def fetch_and_update_metrics() -> None:
 
 def get_rlaf_ai_feedback() -> dict:
     """
-    Extracts real-time reward feedback from Supabase to steer AI Dilemma Generation.
-    - Analyzes which topics and hooks earned the highest views and engagement.
-    - Balances Exploitation (scaling winning topics) vs Exploration (testing fresh viral genres).
+    Extracts real-time reward feedback from Supabase to steer AI Story Generation.
+    - Analyzes which topics, characters, and hooks earned the highest views, velocity, and engagement.
+    - Balances Exploitation (scaling winning comedic dynamics) vs Exploration (testing fresh unrestricted genres).
     """
     tracked_videos = get_tracked_videos_for_analytics(limit=50)
     if not tracked_videos:
         return {
             "top_topics": [],
             "low_topics": [],
+            "top_categories": [],
+            "summary": "Channel starting fresh. Explore unrestricted creative concepts across diverse comedic niches.",
             "strategy_mode": "EXPLORATION (Unrestricted Innovation)"
         }
-        
+
     sorted_videos = sorted(
         tracked_videos, 
-        key=lambda v: (v.get("yt_views", 0) + v.get("fb_views", 0) + v.get("viral_score", 0)), 
+        key=lambda v: (
+            calculate_youtube_reward(v.get("yt_views", 0), v.get("yt_likes", 0), v.get("yt_comments", 0), recorded_at_str=v.get("recorded_at")) +
+            calculate_facebook_reward(v.get("fb_views", 0), v.get("fb_shares", 0), v.get("fb_comments", 0), v.get("fb_likes", 0), recorded_at_str=v.get("recorded_at"))
+        ), 
         reverse=True
     )
-    
+
     top_topics = []
     low_topics = []
-    
+    top_categories = []
+
     for v in sorted_videos[:8]:
         title = v.get("title", "")
-        tot_views = v.get("yt_views", 0) + v.get("fb_views", 0)
+        tot_views = (v.get("yt_views", 0) or 0) + (v.get("fb_views", 0) or 0)
+        cat = v.get("category", "")
         if tot_views > 10 or v.get("viral_score", 0) > 0:
-            top_topics.append(title[:40])
-            
+            top_topics.append(title[:60])
+            if cat and cat not in top_categories:
+                top_categories.append(cat)
+
     for v in sorted_videos[-6:]:
         title = v.get("title", "")
-        tot_views = v.get("yt_views", 0) + v.get("fb_views", 0)
-        if tot_views <= 5:
-            low_topics.append(title[:40])
-            
-    is_exploration = random.random() < 0.25 or len(top_topics) == 0
-    strategy_mode = "EXPLORATION (Unrestricted Innovation)" if is_exploration else "EXPLOITATION (Precision Scaling on Winners)"
-    
+        tot_views = (v.get("yt_views", 0) or 0) + (v.get("fb_views", 0) or 0)
+        if tot_views <= 10:
+            low_topics.append(title[:60])
+
+    is_exploration = random.random() < 0.35 or len(top_topics) == 0
+    strategy_mode = "EXPLORATION (Unrestricted Innovation)" if is_exploration else "EXPLOITATION (Precision Scaling on Winning Dynamics)"
+
+    summary = (
+        f"Audience responding strongly to: {', '.join(top_topics[:3])}. "
+        f"Avoid repeating flat dynamics from: {', '.join(low_topics[:2])}."
+        if top_topics else "Exploring fresh creative frontiers with 0 thematic boundaries."
+    )
+
     print(f"\n[RLAF ADAPTIVE ENGINE] Mode: {strategy_mode}")
     if top_topics:
         safe_topics = [t.encode('ascii', 'replace').decode() for t in top_topics[:3]]
@@ -350,10 +365,12 @@ def get_rlaf_ai_feedback() -> dict:
     if low_topics:
         safe_low = [t.encode('ascii', 'replace').decode() for t in low_topics[:2]]
         print(f"[RLAF ADAPTIVE ENGINE] Downweighting Low Concepts: {safe_low}")
-        
+
     return {
         "top_topics": top_topics,
         "low_topics": low_topics,
+        "top_categories": top_categories,
+        "summary": summary,
         "strategy_mode": strategy_mode
     }
 

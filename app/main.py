@@ -52,9 +52,13 @@ def main():
     rlaf_feedback = get_rlaf_ai_feedback()
     uploaded_short_title = None
 
-    # --- PHASE 2: 100% REAL AI 3-ACT ANIMATED STORY (NEURAL DIFFUSION + DYNAMIC FOLEY & MUSIC) ---
-    print(f"\n--- Generating 100% Real AI Animated Short (RLAF Steered: {primary_mood}) ---")
-    story_concept = generate_viral_story_concept(rlaf_feedback=rlaf_feedback)
+    # --- PHASE 2: 100% REAL AI 5-ACT ANIMATED STORY (NEURAL DIFFUSION + DYNAMIC FOLEY & MUSIC) ---
+    print(f"\n--- Generating 100% Real AI Animated Short (RLAF Adaptive: {primary_mood}) ---")
+    story_concept = generate_viral_story_concept(
+        rlaf_feedback=rlaf_feedback,
+        yt_profile=yt_short_profile,
+        fb_profile=fb_short_profile
+    )
     story_id = f"ai_story_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
     story_out = os.path.join("data", "output", f"{story_id}.mp4")
 

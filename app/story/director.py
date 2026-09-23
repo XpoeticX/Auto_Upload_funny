@@ -766,11 +766,17 @@ def create_cta_banner(text: str, output_path: str, width: int = 1080, height: in
         print(f"[STORY DIRECTOR] CTA banner generation notice: {e}")
         return None
 
-def generate_viral_story_concept(rlaf_feedback: Optional[Dict] = None) -> Dict:
+def generate_viral_story_concept(
+    rlaf_feedback: Optional[Dict] = None,
+    yt_profile: Optional[Dict] = None,
+    fb_profile: Optional[Dict] = None
+) -> Dict:
     """
-    Uses Gemini 3.6 Flash / Qwen-72B to autonomously brainstorm ultra-viral surrealist AI animated short stories
-    following the strict 5-Act Universal Two-Wave Conflict Arc with protagonist/environment lock.
-    Enforces anti-repetition rules against recent uploads and strict English title sanitization.
+    Autonomously brainstorms 5-act animated short stories with REAL-TIME AUTO-LEARNING & ADAPTATION:
+    - Learns from real audience data (views, shares, retention, velocity).
+    - Ingests emergent reinforcement rules and reward drivers from YouTube & Facebook meta-optimizers.
+    - Zero thematic restrictions: complete creative freedom across any universe, character, or comedic scenario.
+    - Strictly preserves protagonist lock, environment lock, 5-act conflict curve, and clean English titles.
     """
     api_keys = [
         os.environ.get("GEMINI_API_KEY"),
@@ -784,19 +790,67 @@ def generate_viral_story_concept(rlaf_feedback: Optional[Dict] = None) -> Dict:
     global_intel = get_global_viral_intelligence()
     market_context = global_intel.get("market_summary", "")
 
-    feedback_context = ""
+    # --- 1. DYNAMIC AUDIENCE REINFORCEMENT LEARNING DIRECTIVES ---
+    feedback_parts = []
     if rlaf_feedback:
-        summary = rlaf_feedback.get("summary", "")
-        top_cats = rlaf_feedback.get("top_categories", [])
-        if summary or top_cats:
-            feedback_context = f"\nChannel Specific Feedback:\n- Summary: {summary}\n- Top Performing on Your Channel: {top_cats}"
+        strat = rlaf_feedback.get("strategy_mode", "EXPLORATION (Unrestricted Innovation)")
+        feedback_parts.append(f"• Dynamic Learning Mode: {strat}")
+        top_t = rlaf_feedback.get("top_topics", [])
+        if top_t:
+            feedback_parts.append(f"• Top Performing Audience Hits (Learn & reverse-engineer their pacing/stakes): {', '.join(top_t[:4])}")
+        low_t = rlaf_feedback.get("low_topics", [])
+        if low_t:
+            feedback_parts.append(f"• Low Retention Concepts (DO NOT repeat flat/boring setups like these): {', '.join(low_t[:3])}")
+        summary = rlaf_feedback.get("summary")
+        if summary:
+            feedback_parts.append(f"• Audience Behavior Insight: {summary}")
+
+    # Emergent Directives & Rules from Platform Meta-Agents
+    emergent_rules = []
+    reward_drivers = []
+    penalty_causes = []
+    mandatory_hooks = []
+    title_formulas = []
+    fb_cta_hint = ""
+
+    if yt_profile:
+        yt_eval = yt_profile.get("agent_evaluation", {})
+        emergent_rules.extend(yt_eval.get("emergent_n_rules", []))
+        reward_drivers.extend(yt_eval.get("reward_drivers", []))
+        penalty_causes.extend(yt_eval.get("penalty_root_causes", []))
+        mandatory_hooks.extend(yt_profile.get("phase_4_vision_gate_directives", {}).get("mandatory_visual_hooks", []))
+        title_formulas.extend(yt_profile.get("phase_6_copywriting_directives", {}).get("title_formulas", []))
+
+    if fb_profile:
+        fb_eval = fb_profile.get("agent_evaluation", {})
+        for r in fb_eval.get("emergent_n_rules", []):
+            if r not in emergent_rules:
+                emergent_rules.append(r)
+        for d in fb_eval.get("reward_drivers", []):
+            if d not in reward_drivers:
+                reward_drivers.append(d)
+        fb_cta_hint = fb_profile.get("phase_6_copywriting_directives", {}).get("comment_cta", "")
+
+    if emergent_rules:
+        feedback_parts.append("• Active Emergent Rules from Audience Performance:\n  " + "\n  ".join([f"→ {r}" for r in emergent_rules[:4]]))
+    if reward_drivers:
+        feedback_parts.append("• Proven Reward Drivers to Double-Down On:\n  " + "\n  ".join([f"✓ {d}" for d in reward_drivers[:3]]))
+    if penalty_causes:
+        feedback_parts.append("• Identified Penalty Root Causes to Eliminate:\n  " + "\n  ".join([f"✗ {c}" for c in penalty_causes[:3]]))
+    if mandatory_hooks:
+        feedback_parts.append("• Mandatory Hook Requirements:\n  " + "\n  ".join([f"★ {h}" for h in mandatory_hooks[:2]]))
+
+    feedback_context = "\n".join(feedback_parts) if feedback_parts else "Channel in rapid growth. Prioritize high-velocity Global Trends!"
 
     # Query recent video history to prevent concept repetition
     recent_videos = get_tracked_videos_for_analytics(limit=8)
     recent_titles = [v.get("title", "") for v in recent_videos if v.get("title")]
     recent_summary = "\n".join([f"- {t}" for t in recent_titles[:6]]) if recent_titles else "None"
 
-    prompt = f"""You are an expert Pixar-grade visual storyteller and viral retention director for AI animated YouTube Shorts and Facebook Reels (producing 10M to 80M+ view hits).
+    title_formula_hint = f"Inspiration: '{title_formulas[0]}'" if title_formulas else "Use curiosity loops + strong emojis"
+    cta_hint = f"Inspiration: '{fb_cta_hint}'" if fb_cta_hint else "Ask an interactive, polarizing question"
+
+    prompt = f"""You are an elite Pixar-grade visual storyteller and viral retention director for AI animated YouTube Shorts and Facebook Reels (producing 10M to 80M+ view hits).
 
 Your task is to output a single, cohesive, self-contained mini-movie (14 seconds) strictly structured around the Universal Two-Wave Conflict Arc.
 
@@ -805,36 +859,39 @@ Never generate disjointed scenes, random clips, montage cuts, or talking-head in
 === 1. CURRENT GLOBAL VIRAL MARKET INTELLIGENCE ===
 {market_context}
 
-=== 2. CHANNEL AUDIENCE DATA ===
-{feedback_context or "Channel is in growth phase. Prioritize the high-velocity Global Trends above!"}
+=== 2. REAL-TIME AUDIENCE ADAPTATION & REINFORCEMENT LEARNING DIRECTIVES ===
+{feedback_context}
 
 === 3. STRICT ANTI-REPETITION CONSTRAINT (CRITICAL) ===
 The following characters and stories were posted recently on our channel:
 {recent_summary}
 DO NOT repeat any of these characters, animals, food items, or storylines!
-Choose a completely FRESH protagonist and premise from a different niche (e.g. Baby Penguin, Panda Barista, Capybara Lifeguard, Alien Granny, etc.).
+Invent a completely FRESH protagonist, setting, and premise!
 
-=== 4. CORE RULES OF CONTINUITY & ARC DYNAMICS ===
+=== 4. UNRESTRICTED CREATIVE INNOVATION (ZERO THEMATIC BOUNDARIES) ===
+You have COMPLETE, 100% UNRESTRICTED CREATIVE FREEDOM across all comedy themes, premises, and genres.
+Do NOT limit yourself to kitchens, pets, or food. Invent ANY imaginative, hilarious, surreal, absurd, or high-concept idea:
+- Wild & Exotic Animals in Bizarre Human Roles (Capybara detective, Sloth Formula-1 pit crew, Kangaroo bouncer, Pelican dentist)
+- Mythical & Fantasy Slapstick (Baby dragon sneezing ice cubes, Goblin barista brewing lava, Yeti hair salon disaster)
+- Living Objects & Toys (Rubber duckie escaping whirlpool, sentient toaster on trampoline, garden gnome parkour)
+- Chaotic Sci-Fi & Cosmic Adventures (Astronaut squirrel fixing a moon satellite, alien grandma driving flying tractor)
+- Miniature Worlds & Absurd Scale (Ant weightlifter benching a strawberry, bee air-traffic controller)
+- Extreme Everyday Situations Amplified to Absurdity
 
-1. **Protagonist Lock:** Pick ONE distinct character (e.g., Hamster Chef, Baby Dino, Robot Barista). Visual attributes, clothing, and props must persist across ALL 5 acts.
-2. **Environment Lock:** The entire short takes place in ONE contiguous set (e.g., kitchen counter, workshop, living room rug).
-3. **The Conflict Arc Curve (Strict 5-Act Scene Breakdown):**
-   - Act 1: Hook & Immediate Action (0.0s - 2.5s): Start in media res. Protagonist mid-task when instant anomaly triggers. Zero setup. Dynamic Foley hits within 0.5s.
-   - Act 2: Conflict Spike (2.5s - 5.5s): Anomaly escalates into severe crisis. Initial fix attempt FAILS causing maximum visual chaos. Escalating SFX.
-   - Act 3: The Comeback (5.5s - 8.0s): Low point turns into pivot. Protagonist takes unexpected clever counter-action. Brief tension drop with precise tactile Foley.
-   - Act 4: Rising Action 2 (8.0s - 11.0s): Rapid acceleration. Counter-move triggers overwhelming chain reaction. Rapid layered SFX crescendo.
-   - Act 5: Climax & Twist Payoff (11.0s - 14.0s): Chaos resolves in unexpected triumphant or ironic punchline. Final frame holds comedic reaction for looping. Resolution chime/ding.
+THE ONLY 5 STRUCTURAL FOUNDATIONS:
+1. **Protagonist Lock:** Pick ONE distinct, lovable protagonist. Same character, props, and design across ALL 5 acts.
+2. **Environment Lock:** One contiguous single-location set across all 5 acts for unbroken continuity.
+3. **Universal 5-Act Conflict Arc:**
+   - Act 1: Hook & Instant Anomaly (0.0s - 2.5s): Zero setup. Protagonist mid-action when crisis strikes. Instant Foley within 0.5s.
+   - Act 2: Conflict Spike (2.5s - 5.5s): Fix attempt fails spectacularly, triggering visual chaos.
+   - Act 3: The Clever Comeback (5.5s - 8.0s): Unexpected clever pivot.
+   - Act 4: Rising Action & Acceleration (8.0s - 11.0s): Counter-move snowballs into crazy chain reaction.
+   - Act 5: Climax & Twist Punchline (11.0s - 14.0s): Ironic, funny, triumphant payoff for infinite looping.
+4. **100% Kinetic Visual Comedy:** Rich facial expressions, dynamic physical slapstick, zero slow talking heads.
+5. **Audience Safe:** Suitable for all ages on YouTube Shorts and Facebook Reels.
 
-4. Model after highest-velocity global formats:
-   - Surreal Anthropomorphic (Muscular Shark chef, Crocodile dentist)
-   - Adorable Baby & Animal Companions (Baby riding mini cow, Baby on pelican)
-   - Living Cartoon Food & Objects with Pixar eyes (Tomato escaping knife)
-   - "Ulti Duniya" / Absurd Role Reversal (Cockroach family dinner)
-   - Animal Slapstick / Food ASMR (Cat chef, Hamster bakery)
-
-5. Style: "hyper-detailed 3d pixar animation style, cinematic lighting, expressive facial features, 8k resolution, vivid colors"
-
-6. Available Foley SFX (choose ONLY from this palette): whoosh, whoosh_fast, whoosh_high, bonk, boing, ding, ding_high_confirm, crunch, sizzle, meow, bark, quack, knife_chop, mechanical_click, clatter_thump, clatter_multi, crash_multi, rising_hum, slide_whistle_down, object_drop
+Style: "hyper-detailed 3d pixar animation style, cinematic lighting, expressive facial features, 8k resolution, vivid colors"
+Available Foley SFX (choose ONLY from this palette): whoosh, whoosh_fast, whoosh_high, bonk, boing, ding, ding_high_confirm, crunch, sizzle, meow, bark, quack, knife_chop, mechanical_click, clatter_thump, clatter_multi, crash_multi, rising_hum, slide_whistle_down, object_drop
 
 === 5. OUTPUT FORMAT (STRICT JSON) ===
 Return valid JSON with this exact structure:
@@ -852,8 +909,8 @@ Return valid JSON with this exact structure:
   - foley_cues: array of 2-3 cues, each with timestamp_sec (relative to scene start), sfx (from palette), volume (1.5-2.8)
 - audio_config: object with bgm_style, bgm_base_volume (0.75), target_loudnorm_lufs (-14.0)
 - music_vibe: "bouncy_comedy"
-- yt_title: viral YouTube title strictly in English with emojis and #shorts #viral
-- fb_title: Facebook engagement caption under 120 chars strictly in English
+- yt_title: viral YouTube title strictly in English with emojis and #shorts #viral ({title_formula_hint})
+- fb_title: Facebook engagement caption under 120 chars strictly in English ({cta_hint})
 - hook_text: punchy 3-5 word on-screen text hook in ALL CAPS (e.g. "DON'T BLINK!", "WAIT TILL THE END!")
 - cta_text: punchy 3-5 word on-screen call to action in ALL CAPS (e.g. "SUBSCRIBE FOR PART 2! 🔔")
 - tags: array of relevant hashtag strings
@@ -879,10 +936,11 @@ Return valid JSON with this exact structure:
                 data["hook_text"] = (t_clean[:32] if t_clean else "WAIT FOR IT... DON'T BLINK!").upper()
             if not data.get("cta_text"):
                 data["cta_text"] = "SUBSCRIBE FOR PART 2! 🔔"
-            print(f"[STORY DIRECTOR] Conceived new 5-act story via Gemini 3.6 Flash: '{data.get('story_title', data.get('title'))}' in niche '{data.get('niche')}'")
+            print(f"[STORY DIRECTOR] Conceived new adaptive 5-act story via Gemini 3.6 Flash: '{data.get('story_title', data.get('title'))}' in niche '{data.get('niche')}'")
             return data
         except Exception as e:
             print(f"[STORY DIRECTOR] Gemini notice: {e}")
+            time.sleep(1.0)
 
     # Fallback to Hugging Face Qwen-72B Autonomous Brainstorming
     hf_token = os.environ.get("HF_TOKEN")
@@ -916,7 +974,7 @@ Return valid JSON with this exact structure:
                 data["hook_text"] = (t_clean[:32] if t_clean else "WAIT FOR IT... DON'T BLINK!").upper()
             if not data.get("cta_text"):
                 data["cta_text"] = "SUBSCRIBE FOR PART 2! 🔔"
-            print(f"[STORY DIRECTOR] Conceived new 5-act story via Qwen-72B: '{data.get('story_title', data.get('title'))}' in niche '{data.get('niche')}'")
+            print(f"[STORY DIRECTOR] Conceived new adaptive 5-act story via Qwen-72B: '{data.get('story_title', data.get('title'))}' in niche '{data.get('niche')}'")
             return data
         except Exception as e:
             print(f"[STORY DIRECTOR] Hugging Face Qwen-72B notice: {e}")
